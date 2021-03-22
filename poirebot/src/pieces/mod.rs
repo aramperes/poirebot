@@ -1,5 +1,8 @@
-use std::fmt::{Debug, Formatter, Display};
+use std::fmt::{Debug, Display, Formatter};
+
 use anyhow::Context;
+
+use crate::pieces::pawn::Pawn;
 
 mod pawn;
 
@@ -7,7 +10,7 @@ const FILES: [char; 8] = ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h'];
 const RANKS: [char; 8] = ['1', '2', '3', '4', '5', '6', '7', '8'];
 
 /// A chess piece.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Copy)]
 pub enum Pieces {
     Pawn(pawn::Pawn),
 }
@@ -22,6 +25,12 @@ impl Piece for Pieces {
     fn get_position(&self) -> Position {
         match self {
             Pieces::Pawn(p) => p.get_position(),
+        }
+    }
+
+    fn set_position(&self, new_position: Position) -> Self {
+        match self {
+            Pieces::Pawn(p) => p.set_position(new_position).into(),
         }
     }
 }
@@ -57,16 +66,23 @@ impl Position {
     /// Initialize a position from notation (for example: a8).
     pub fn from_notation(notation: &str) -> anyhow::Result<Position> {
         if notation.len() != 2 {
-            return Err(anyhow::Error::msg(format!("invalid notation: {}", notation)));
+            return Err(anyhow::Error::msg(format!(
+                "invalid notation: {}",
+                notation
+            )));
         }
         let mut chars = notation.chars();
         let file_char = chars.next().unwrap();
         let rank_char = chars.next().unwrap();
 
-        let file_x = FILES.iter().position(|c| c == &file_char)
+        let file_x = FILES
+            .iter()
+            .position(|c| c == &file_char)
             .with_context(|| "invalid notation file")? as i32;
 
-        let rank_y = RANKS.iter().position(|c| c == &rank_char)
+        let rank_y = RANKS
+            .iter()
+            .position(|c| c == &rank_char)
             .with_context(|| "invalid notation rank")? as i32;
 
         Ok(Position { file_x, rank_y })
@@ -93,6 +109,8 @@ pub trait Piece {
     fn get_color(&self) -> Color;
     /// Get the position of the piece.
     fn get_position(&self) -> Position;
+    /// Update the position of the current piece.
+    fn set_position(&self, new_position: Position) -> Self;
 }
 
 #[cfg(test)]
