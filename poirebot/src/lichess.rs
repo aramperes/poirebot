@@ -409,7 +409,7 @@ pub async fn start_bot() -> anyhow::Result<()> {
             .into_iter()
         {
             lichess
-                .abort_bot_game(&game.game_id)
+                .resign_bot_game(&game.game_id)
                 .await
                 .with_context(|| format!("Failed to abort game: {}", &game.game_id))?;
         }
