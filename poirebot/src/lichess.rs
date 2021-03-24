@@ -238,7 +238,7 @@ async fn process_incoming_event(
     }
 }
 
-async fn send_challenge(lichess: Arc<Lichess>, username: String) -> anyhow::Result<()> {
+async fn send_user_challenge(lichess: Arc<Lichess>, username: String) -> anyhow::Result<()> {
     // TODO: Pass some of these from the CLI
     let options = [
         ("rated", "false"),
@@ -253,6 +253,24 @@ async fn send_challenge(lichess: Arc<Lichess>, username: String) -> anyhow::Resu
         .with_context(|| "Failed to create challenge")
         .map(|challenge| {
             info!("Sent challenge to {}", &username);
+        })
+}
+
+async fn send_stockfish_challenge(lichess: Arc<Lichess>, level: u8) -> anyhow::Result<()> {
+    // TODO: Pass some of these from the CLI
+    let options = [
+        ("rated", "false"),
+        ("clock.limit", "300"),
+        ("clock.increment", "0"),
+        ("color", "random"),
+        ("variant", "standard"),
+    ];
+    lichess
+        .challenge_stockfish(level, Some(&options))
+        .await
+        .with_context(|| "Failed to challenge Stockfish")
+        .map(|challenge| {
+            info!("Sent challenge to Stockfish level {}", level);
         })
 }
 
@@ -281,6 +299,14 @@ pub async fn start_bot() -> anyhow::Result<()> {
                 .required(false)
                 .takes_value(true),
         )
+        .arg(
+            Arg::with_name("stockfish")
+                .long("stockfish")
+                .help("Start a Stockfish duel with the given strength (1-8)")
+                .takes_value(true)
+                .conflicts_with("challenge")
+                .required(false),
+        )
         .get_matches();
 
     let token = args
@@ -299,9 +325,16 @@ pub async fn start_bot() -> anyhow::Result<()> {
 
     // Challenge if specified
     if let Some(challenge_username) = args.value_of("challenge") {
-        send_challenge(lichess.clone(), challenge_username.into())
+        send_user_challenge(lichess.clone(), challenge_username.into())
             .await
             .with_context(|| format!("Failed to send challenge to {}", challenge_username))?;
+    } else if let Some(stockfish_level) = args.value_of("stockfish") {
+        send_stockfish_challenge(
+            lichess.clone(),
+            stockfish_level.parse().expect("invalid stockfish level"),
+        )
+        .await
+        .with_context(|| format!("Failed to send challenge to Stockfish"))?;
     }
 
     while let Some(event) = event_stream.next().await {
