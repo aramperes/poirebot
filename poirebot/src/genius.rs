@@ -3,7 +3,7 @@ use std::time::Duration;
 use rand::seq::SliceRandom;
 use tokio::sync::oneshot;
 
-use crate::game::{Board, Move};
+use crate::game::{Board, Move, Promotion};
 use crate::pieces::{Color, Piece};
 
 #[derive(Debug, Clone, Copy)]
@@ -50,10 +50,11 @@ impl Brain {
                 .expect("no pawn to move");
 
             let origin = pawn.get_position();
-            let destination = pawn.get_position().forwards(color, 1);
+            let destination = origin.forwards(color, 1);
+            let promotion = Promotion::None;
 
             sensor
-                .send(Move(origin, destination))
+                .send(Move(origin, destination, promotion))
                 .expect("Failed to dispatch Brain move");
         })
     }

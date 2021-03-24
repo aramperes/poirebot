@@ -11,7 +11,7 @@ use tokio_stream::StreamExt;
 
 use crate::game::{Move, TurnCounter};
 use crate::genius::Brain;
-use crate::pieces::{Color, Position};
+use crate::pieces::Color;
 
 // The username of the bot. TODO: make this configurable
 const BOT_USERNAME: &str = "poirebot";
@@ -474,22 +474,24 @@ fn last_move(moves: &str) -> String {
 impl Move {
     /// Convert a `Move` to Lichess move notation.
     ///
-    /// For example: `Move(a1, a2)` becomes `"a1a2"`.
+    /// Ref: https://www.chessprogramming.org/Algebraic_Chess_Notation#Pure_coordinate_notation
+    ///
+    /// For example: `Move(a1, a2, Queen)` becomes `"a1a2q"`.
     fn to_lichess_notation(&self) -> String {
-        let Move(origin, destination) = self;
-        format!("{}{}", origin, destination)
+        let Move(origin, destination, promotion) = self;
+        format!("{}{}{}", origin, destination, promotion)
     }
 
     /// Convert a `Move` from Lichess move notation.
     ///
-    /// For example: `"a1a2"` becomes `Move(a1, a2)`.
+    /// Ref: https://www.chessprogramming.org/Algebraic_Chess_Notation#Pure_coordinate_notation
+    ///
+    /// For example: `"a1a2q"` becomes `Move(a1, a2, Queen)`.
     fn from_lichess_notation(notation: &str) -> Self {
         let origin = notation.chars().take(2).collect::<String>();
-        let current = notation.chars().skip(2).take(2).collect::<String>();
+        let destination = notation.chars().skip(2).take(2).collect::<String>();
+        let promotion = notation.chars().skip(3).take(1).collect::<String>();
 
-        let origin = Position::from_notation(&origin).unwrap();
-        let destination = Position::from_notation(&current).unwrap();
-
-        Move(origin, destination)
+        Move(origin.into(), destination.into(), promotion.into())
     }
 }
