@@ -307,14 +307,35 @@ pub async fn start_bot() -> anyhow::Result<()> {
                 .conflicts_with("challenge")
                 .required(false),
         )
+        .arg(
+            Arg::with_name("abort")
+                .long("abort")
+                .help("Aborts all ongoing games")
+                .takes_value(false)
+                .required(false),
+        )
         .get_matches();
 
     let token = args
         .value_of("token")
         .with_context(|| "Missing Lichess token")?
         .to_string();
-
     let lichess = licoricedev::client::Lichess::new(token);
+
+    if args.is_present("abort") {
+        for game in lichess
+            .get_ongoing_games(50)
+            .await
+            .with_context(|| "Failed to get ongoing games")?
+            .into_iter()
+        {
+            lichess
+                .abort_bot_game(&game.game_id)
+                .await
+                .with_context(|| format!("Failed to abort game: {}", &game.game_id))?;
+        }
+    }
+
     let mut event_stream = lichess
         .stream_incoming_events()
         .await
