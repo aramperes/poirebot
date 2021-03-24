@@ -34,7 +34,7 @@ impl Piece for Pieces {
 }
 
 /// A chess piece set (white or black).
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, PartialEq)]
 pub enum Color {
     White,
     Black,
@@ -100,6 +100,18 @@ impl Position {
         Position {
             file_x: self.file_x,
             rank_y: 7 - self.rank_y,
+        }
+    }
+
+    /// Returns a new position, forwards by increment in the direction of the given color.
+    pub fn forwards(&self, color: Color, inc: u8) -> Self {
+        let rank = match color {
+            Color::Black => self.rank_y - inc,
+            Color::White => self.rank_y + inc,
+        };
+        Position {
+            file_x: self.file_x,
+            rank_y: rank.clamp(0, 7),
         }
     }
 

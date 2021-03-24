@@ -9,9 +9,9 @@ use tokio::sync::mpsc::{UnboundedReceiver, UnboundedSender};
 use tokio::sync::oneshot;
 use tokio_stream::StreamExt;
 
-use crate::game::TurnCounter;
+use crate::game::{Move, TurnCounter};
 use crate::genius::Brain;
-use crate::pieces::Color;
+use crate::pieces::{Color, Position};
 
 // The username of the bot. TODO: make this configurable
 const BOT_USERNAME: &str = "poirebot";
@@ -90,18 +90,18 @@ async fn message_loop(
             }
             Message::OpponentMove(m) => {
                 info!("Opponent ({}) moved: {}", game_id.id, m);
-                brain.opponent_move(m);
+                brain.opponent_move(Move::from_lichess_notation(m));
             }
             Message::BotMove => {
                 info!("Our turn! ({})", game_id.id);
-                let (sensor, recv) = oneshot::channel::<String>();
+                let (sensor, recv) = oneshot::channel::<Move>();
                 brain.choose_move(sensor);
 
                 let m = recv.await.unwrap();
-                brain.own_move(m.clone());
+                brain.own_move(m);
 
                 if let Err(e) = lichess
-                    .make_a_bot_move(&game_id.id, &m, false)
+                    .make_a_bot_move(&game_id.id, m.to_lichess_notation().as_str(), false)
                     .await
                     .with_context(|| "Failed to dispatch move to Lichess")
                 {
@@ -461,4 +461,26 @@ fn is_bot_white(game_full: &GameFull) -> bool {
 
 fn last_move(moves: &str) -> String {
     moves.split(' ').last().unwrap_or_default().to_string()
+}
+
+impl Move {
+    fn to_lichess_notation(&self) -> String {
+        match self {
+            Move::Displace(origin, destination) => {
+                format!("{}{}", origin, destination)
+            }
+        }
+    }
+
+    fn from_lichess_notation(notation: String) -> Self {
+        // This only supports simple moves
+        // TODO: Taking pieces, castling, etc.
+        let origin = notation.chars().take(2).collect::<String>();
+        let current = notation.chars().skip(2).take(2).collect::<String>();
+
+        let origin = Position::from_notation(&origin).unwrap();
+        let destination = Position::from_notation(&current).unwrap();
+
+        Move::Displace(origin, destination)
+    }
 }
