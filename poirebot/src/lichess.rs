@@ -48,7 +48,7 @@ async fn message_loop(
     recv: &mut UnboundedReceiver<Message>,
     lichess: Arc<Lichess>,
 ) {
-    let mut brain = Brain::new();
+    let mut brain = Brain::default();
 
     while let Some(message) = recv.recv().await {
         match message {

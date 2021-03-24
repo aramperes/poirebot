@@ -5,10 +5,11 @@ use anyhow::Context;
 use licoricedev::models::board::Event;
 use tokio_stream::StreamExt;
 
+mod bitboard;
 mod game;
+mod genius;
 mod lichess;
 mod pieces;
-mod genius;
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {

@@ -46,18 +46,18 @@ pub enum Color {
 #[derive(Debug, Clone, Copy)]
 pub struct Position {
     /// The file index, 0 to 7 (maps A to H)
-    pub file_x: i32,
+    pub file_x: u8,
     /// The rank index, 0 to 7 (maps 1 to 8)
-    pub rank_y: i32,
+    pub rank_y: u8,
 }
 
 impl Position {
     /// Initialize a position from indexes.
-    pub fn new(file_x: i32, rank_y: i32) -> anyhow::Result<Position> {
-        if file_x < 0 || file_x > 7 {
+    pub fn new(file_x: u8, rank_y: u8) -> anyhow::Result<Position> {
+        if file_x > 7 {
             return Err(anyhow::Error::msg(format!("invalid file: {}", file_x)));
         }
-        if rank_y < 0 || rank_y > 7 {
+        if rank_y > 7 {
             return Err(anyhow::Error::msg(format!("invalid rank: {}", rank_y)));
         }
         Ok(Position { file_x, rank_y })
@@ -78,12 +78,12 @@ impl Position {
         let file_x = FILES
             .iter()
             .position(|c| c == &file_char)
-            .with_context(|| "invalid notation file")? as i32;
+            .with_context(|| "invalid notation file")? as u8;
 
         let rank_y = RANKS
             .iter()
             .position(|c| c == &rank_char)
-            .with_context(|| "invalid notation rank")? as i32;
+            .with_context(|| "invalid notation rank")? as u8;
 
         Ok(Position { file_x, rank_y })
     }
@@ -94,6 +94,10 @@ impl Position {
             file_x: self.file_x,
             rank_y: 7 - self.rank_y,
         }
+    }
+
+    pub fn to_int(&self) -> u8 {
+        self.rank_y << 3 ^ self.file_x
     }
 }
 
