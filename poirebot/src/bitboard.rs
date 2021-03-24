@@ -224,6 +224,7 @@ impl Not for &BitBoard {
 impl fmt::Display for BitBoard {
     #[inline]
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        let mut v = Vec::new();
         let mut s: String = "".to_owned();
         for x in 0..64 {
             if self.0 & (1u64 << x) == (1u64 << x) {
@@ -232,10 +233,12 @@ impl fmt::Display for BitBoard {
                 s.push_str(". ");
             }
             if x % 8 == 7 {
-                s.push_str("\n");
+                v.push(s.clone());
+                s.clear();
             }
         }
-        write!(f, "{}", s)
+        v.reverse();
+        write!(f, "{}", v.join("\n"))
     }
 }
 
@@ -293,5 +296,27 @@ impl Iterator for BitBoard {
             *self ^= BitBoard::from_position(result);
             Some(result)
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::pieces::Position;
+
+    use super::*;
+
+    #[test]
+    fn test_bitboard() {
+        let one_end = BitBoard::from_position(Position::new(0, 0).unwrap());
+        let other_end = BitBoard::from_position(Position::new(7, 7).unwrap());
+        let combined = one_end | other_end;
+
+        assert_eq!(
+            vec!["a1", "h8"],
+            combined
+                .into_iter()
+                .map(|i| format!("{}", i))
+                .collect::<Vec<String>>()
+        );
     }
 }

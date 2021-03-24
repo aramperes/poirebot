@@ -1,10 +1,6 @@
 #[macro_use]
 extern crate log;
 
-use anyhow::Context;
-use licoricedev::models::board::Event;
-use tokio_stream::StreamExt;
-
 mod bitboard;
 mod game;
 mod genius;

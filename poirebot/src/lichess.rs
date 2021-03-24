@@ -1,19 +1,17 @@
 use std::collections::HashMap;
-use std::ops::DerefMut;
 use std::sync::Arc;
-use std::time::Duration;
 
 use anyhow::Context;
 use clap::{App, Arg};
 use licoricedev::client::Lichess;
 use licoricedev::models::board::{BoardState, Challenge, Challengee, Event, GameFull, GameID};
-use licoricedev::models::game::Game;
-use tokio::sync::broadcast;
-use tokio::sync::mpsc::{Sender, UnboundedReceiver, UnboundedSender};
+use tokio::sync::mpsc::{UnboundedReceiver, UnboundedSender};
+use tokio::sync::oneshot;
 use tokio_stream::StreamExt;
 
 use crate::game::TurnCounter;
 use crate::genius::Brain;
+use crate::pieces::Color;
 
 // The username of the bot. TODO: make this configurable
 const BOT_USERNAME: &str = "poirebot";
@@ -40,6 +38,8 @@ enum Message {
     OpponentMove(String),
     /// When it's our turn to move.
     BotMove,
+    /// Updates the color of the bot.
+    BotColor(Color),
 }
 
 /// Task that handles new game state messages.
@@ -90,9 +90,31 @@ async fn message_loop(
             }
             Message::OpponentMove(m) => {
                 info!("Opponent ({}) moved: {}", game_id.id, m);
+                brain.opponent_move(m);
             }
             Message::BotMove => {
                 info!("Our turn! ({})", game_id.id);
+                let (sensor, recv) = oneshot::channel::<String>();
+                brain.choose_move(sensor);
+
+                let m = recv.await.unwrap();
+                brain.own_move(m.clone());
+
+                if let Err(e) = lichess
+                    .make_a_bot_move(&game_id.id, &m, false)
+                    .await
+                    .with_context(|| "Failed to dispatch move to Lichess")
+                {
+                    error!("{:?}", e);
+                    lichess
+                        .resign_bot_game(&game_id.id)
+                        .await
+                        .unwrap_or_else(|_| ());
+                    break;
+                }
+            }
+            Message::BotColor(color) => {
+                brain.color = color;
             }
         }
     }
@@ -225,7 +247,10 @@ async fn dispatch_board_event(
         BoardState::GameFull(state) => {
             if state.state.status == "started" {
                 if turn_counter.first_move {
-                    turn_counter.our_turn = is_bot_white(&state);
+                    let white = is_bot_white(&state);
+                    turn_counter.our_turn = white;
+                    let color = if white { Color::White } else { Color::Black };
+                    sender.send(Message::BotColor(color)).unwrap_or_else(|_| ());
                 }
                 if turn_counter.our_turn {
                     sender.send(Message::BotMove).unwrap_or_else(|_| ());
@@ -244,7 +269,7 @@ async fn dispatch_board_event(
             if state.status == "started" {
                 if turn_counter.first_move {
                     error!("Did not expect first move to be partial game state.");
-                } else {
+                } else if turn_counter.our_turn {
                     let m = last_move(&state.moves);
                     sender.send(Message::OpponentMove(m)).unwrap_or_else(|_| ());
                     sender.send(Message::BotMove).unwrap_or_else(|_| ());

@@ -2,9 +2,7 @@ use std::fmt::{Debug, Display, Formatter};
 
 use anyhow::Context;
 
-use crate::pieces::pawn::Pawn;
-
-mod pawn;
+pub mod pawn;
 
 const FILES: [char; 8] = ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h'];
 const RANKS: [char; 8] = ['1', '2', '3', '4', '5', '6', '7', '8'];
@@ -40,6 +38,15 @@ impl Piece for Pieces {
 pub enum Color {
     White,
     Black,
+}
+
+impl Color {
+    pub fn opposite(&self) -> Self {
+        match self {
+            Self::White => Self::Black,
+            Self::Black => Self::White,
+        }
+    }
 }
 
 /// Position on the board.
