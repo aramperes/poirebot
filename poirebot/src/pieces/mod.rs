@@ -115,8 +115,27 @@ impl Position {
         }
     }
 
+    /// Convert to `BitBoard` notation.
     pub fn to_int(&self) -> u8 {
         self.rank_y << 3 ^ self.file_x
+    }
+}
+
+/// Converts from a notation `String` (e.g. `"a1"`).
+/// Note that this function panics if an invalid notation is given. Use `Position::from_notation`
+/// for safer conversion.
+impl From<String> for Position {
+    fn from(p: String) -> Self {
+        Position::from_notation(p.as_str()).expect("invalid notation")
+    }
+}
+
+/// Converts from a notation `&str` (e.g. `"a1"`).
+/// Note that this function panics if an invalid notation is given. Use `Position::from_notation`
+/// for safer conversion.
+impl From<&str> for Position {
+    fn from(p: &str) -> Self {
+        Position::from_notation(p).expect("invalid notation")
     }
 }
 

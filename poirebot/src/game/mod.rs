@@ -1,14 +1,114 @@
-use crate::pieces::{Piece, Pieces, Position};
+use crate::bitboard::BitBoard;
+use crate::pieces::{Color, Pieces, Position};
 
-/// A chess piece move.
+/// A chess piece move (origin and destination).
 #[derive(Debug, Clone, Copy)]
-pub enum Move {
-    /// Goes from point A to point B. Might be "taking" a piece.
-    Displace(Position, Position),
+pub struct Move(pub Position, pub Position);
+
+impl From<(&str, &str)> for Move {
+    fn from(m: (&str, &str)) -> Self {
+        Move(m.0.into(), m.1.into())
+    }
+}
+
+impl From<(Position, Position)> for Move {
+    fn from(m: (Position, Position)) -> Self {
+        Move(m.0, m.1)
+    }
 }
 
 #[derive(Debug, Clone, Copy)]
-pub struct Board {}
+pub struct Board {
+    pub white_pieces: BitBoard,
+    pub black_pieces: BitBoard,
+    pub white_pawns: BitBoard,
+    pub black_pawns: BitBoard,
+}
+
+impl Board {
+    /// Update the board after a player moved.
+    pub fn apply_move(&mut self, m: Move, color: Color) {
+        let Move(origin, destination) = m;
+
+        let origin_bb = BitBoard::from(origin);
+        let destination_bb = BitBoard::from(destination);
+
+        match color {
+            Color::White => match self.get_piece(origin) {
+                Some(Pieces::Pawn(_)) => {
+                    self.white_pawns &= !origin_bb;
+                    self.white_pawns |= destination_bb;
+                    self.white_pieces &= !origin_bb;
+                    self.white_pieces |= destination_bb;
+                }
+                _ => (),
+            },
+            Color::Black => match self.get_piece(origin) {
+                Some(Pieces::Pawn(_)) => {
+                    self.black_pawns &= !origin_bb;
+                    self.black_pawns |= destination_bb;
+                    self.black_pieces &= !origin_bb;
+                    self.black_pieces |= destination_bb;
+                }
+                _ => (),
+            },
+        }
+    }
+
+    /// Get a list of pawns of the given color.
+    pub fn get_pawns(&self, color: Color) -> Vec<crate::pieces::pawn::Pawn> {
+        let pawns = if color == Color::White {
+            self.white_pawns
+        } else {
+            self.black_pawns
+        };
+        pawns
+            .into_iter()
+            .map(move |position| crate::pieces::pawn::Pawn { color, position })
+            .collect()
+    }
+
+    /// Get the piece at the given position if any.
+    pub fn get_piece(&self, position: Position) -> Option<Pieces> {
+        let bb = BitBoard::from(position);
+        if (bb & self.white_pawns).popcnt() == 1 {
+            Some(Pieces::Pawn(crate::pieces::pawn::Pawn {
+                position,
+                color: Color::White,
+            }))
+        } else if (bb & self.black_pawns).popcnt() == 1 {
+            Some(Pieces::Pawn(crate::pieces::pawn::Pawn {
+                position,
+                color: Color::Black,
+            }))
+        } else {
+            None
+        }
+    }
+}
+impl Default for Board {
+    fn default() -> Self {
+        let white_pawns: BitBoard = BitBoard::from_position("a2".into())
+            | BitBoard::from_position("b2".into())
+            | BitBoard::from_position("c2".into())
+            | BitBoard::from_position("d2".into())
+            | BitBoard::from_position("e2".into())
+            | BitBoard::from_position("f2".into())
+            | BitBoard::from_position("g2".into())
+            | BitBoard::from_position("h2".into());
+        let black_pawns = white_pawns.reverse_colors();
+
+        let white_pieces = white_pawns.clone(); // TODO Add other pieces!
+        let black_pieces = white_pieces.reverse_colors();
+
+        Self {
+            white_pieces,
+            black_pieces,
+            white_pawns,
+            black_pawns,
+        }
+    }
+}
 
 #[derive(Debug, Clone, Copy)]
 pub struct TurnCounter {

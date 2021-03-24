@@ -90,7 +90,7 @@ async fn message_loop(
             }
             Message::OpponentMove(m) => {
                 info!("Opponent ({}) moved: {}", game_id.id, m);
-                brain.opponent_move(Move::from_lichess_notation(m));
+                brain.opponent_move(Move::from_lichess_notation(&m));
             }
             Message::BotMove => {
                 info!("Our turn! ({})", game_id.id);
@@ -254,11 +254,12 @@ async fn dispatch_board_event(
                 }
                 if turn_counter.our_turn {
                     sender.send(Message::BotMove).unwrap_or_else(|_| ());
-                } else if turn_counter.first_move {
+                } else if state.state.moves.is_empty() {
                     // We're still waiting for the opponent's move.
                 } else {
                     let m = last_move(&state.state.moves);
                     sender.send(Message::OpponentMove(m)).unwrap_or_else(|_| ());
+                    sender.send(Message::BotMove).unwrap_or_else(|_| ());
                 }
                 turn_counter.next();
             } else {
@@ -331,7 +332,11 @@ async fn send_user_challenge(lichess: Arc<Lichess>, username: String) -> anyhow:
         .await
         .with_context(|| "Failed to create challenge")
         .map(|challenge| {
-            info!("Sent challenge to {}", &username);
+            info!(
+                "Sent challenge to {}: https://lichess.org/{}",
+                &username,
+                challenge.challenge.unwrap().id
+            );
         })
 }
 
@@ -349,7 +354,10 @@ async fn send_stockfish_challenge(lichess: Arc<Lichess>, level: u8) -> anyhow::R
         .await
         .with_context(|| "Failed to challenge Stockfish")
         .map(|challenge| {
-            info!("Sent challenge to Stockfish level {}", level);
+            info!(
+                "Sent challenge to Stockfish level {}: https://lichess.org/{}",
+                level, challenge.id
+            );
         })
 }
 
@@ -464,23 +472,24 @@ fn last_move(moves: &str) -> String {
 }
 
 impl Move {
+    /// Convert a `Move` to Lichess move notation.
+    ///
+    /// For example: `Move(a1, a2)` becomes `"a1a2"`.
     fn to_lichess_notation(&self) -> String {
-        match self {
-            Move::Displace(origin, destination) => {
-                format!("{}{}", origin, destination)
-            }
-        }
+        let Move(origin, destination) = self;
+        format!("{}{}", origin, destination)
     }
 
-    fn from_lichess_notation(notation: String) -> Self {
-        // This only supports simple moves
-        // TODO: Taking pieces, castling, etc.
+    /// Convert a `Move` from Lichess move notation.
+    ///
+    /// For example: `"a1a2"` becomes `Move(a1, a2)`.
+    fn from_lichess_notation(notation: &str) -> Self {
         let origin = notation.chars().take(2).collect::<String>();
         let current = notation.chars().skip(2).take(2).collect::<String>();
 
         let origin = Position::from_notation(&origin).unwrap();
         let destination = Position::from_notation(&current).unwrap();
 
-        Move::Displace(origin, destination)
+        Move(origin, destination)
     }
 }

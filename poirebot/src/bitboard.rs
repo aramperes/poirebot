@@ -1,13 +1,15 @@
-use crate::pieces::Position;
 use std::fmt;
 use std::ops::{BitAnd, BitAndAssign, BitOr, BitOrAssign, BitXor, BitXorAssign, Mul, Not};
+
+use crate::pieces::Position;
 
 #[derive(PartialEq, Eq, PartialOrd, Clone, Copy, Debug, Default, Hash)]
 pub struct BitBoard(pub u64);
 
+/// The Zero board state.
+#[allow(dead_code)]
 pub const EMPTY: BitBoard = BitBoard(0);
 
-// Impl BitAnd
 impl BitAnd for BitBoard {
     type Output = BitBoard;
 
@@ -44,7 +46,6 @@ impl BitAnd<BitBoard> for &BitBoard {
     }
 }
 
-// Impl BitOr
 impl BitOr for BitBoard {
     type Output = BitBoard;
 
@@ -80,8 +81,6 @@ impl BitOr<BitBoard> for &BitBoard {
         BitBoard(self.0 | other.0)
     }
 }
-
-// Impl BitXor
 
 impl BitXor for BitBoard {
     type Output = BitBoard;
@@ -119,8 +118,6 @@ impl BitXor<BitBoard> for &BitBoard {
     }
 }
 
-// Impl BitAndAssign
-
 impl BitAndAssign for BitBoard {
     #[inline]
     fn bitand_assign(&mut self, other: BitBoard) {
@@ -135,7 +132,6 @@ impl BitAndAssign<&BitBoard> for BitBoard {
     }
 }
 
-// Impl BitOrAssign
 impl BitOrAssign for BitBoard {
     #[inline]
     fn bitor_assign(&mut self, other: BitBoard) {
@@ -150,7 +146,6 @@ impl BitOrAssign<&BitBoard> for BitBoard {
     }
 }
 
-// Impl BitXor Assign
 impl BitXorAssign for BitBoard {
     #[inline]
     fn bitxor_assign(&mut self, other: BitBoard) {
@@ -165,7 +160,6 @@ impl BitXorAssign<&BitBoard> for BitBoard {
     }
 }
 
-// Impl Mul
 impl Mul for BitBoard {
     type Output = BitBoard;
 
@@ -202,7 +196,6 @@ impl Mul<BitBoard> for &BitBoard {
     }
 }
 
-// Impl Not
 impl Not for BitBoard {
     type Output = BitBoard;
 
@@ -283,6 +276,12 @@ impl BitBoard {
     }
 }
 
+impl From<Position> for BitBoard {
+    fn from(pos: Position) -> Self {
+        Self::from_position(pos)
+    }
+}
+
 /// For the `BitBoard`, iterate over every `Position` set.
 impl Iterator for BitBoard {
     type Item = Position;
@@ -293,7 +292,7 @@ impl Iterator for BitBoard {
             None
         } else {
             let result = self.to_position();
-            *self ^= BitBoard::from_position(result);
+            *self ^= BitBoard::from(result);
             Some(result)
         }
     }
@@ -307,8 +306,8 @@ mod tests {
 
     #[test]
     fn test_bitboard() {
-        let one_end = BitBoard::from_position(Position::new(0, 0).unwrap());
-        let other_end = BitBoard::from_position(Position::new(7, 7).unwrap());
+        let one_end = BitBoard::from_position("a1".into());
+        let other_end = BitBoard::from_position("h8".into());
         let combined = one_end | other_end;
 
         assert_eq!(
