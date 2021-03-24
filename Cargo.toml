@@ -1,7 +1,5 @@
 [workspace]
 
 members = [
-    "poirebot",
-    "poirebot-cli",
-    "poirebot-api"
+    "poirebot"
 ]
