@@ -6,12 +6,16 @@ use std::time::Duration;
 use anyhow::Context;
 use clap::{App, Arg};
 use licoricedev::client::Lichess;
-use licoricedev::models::board::Challengee::LightUser;
-use licoricedev::models::board::{BoardState, Challenge, Event, GameID};
+use licoricedev::models::board::{BoardState, Challenge, Challengee, Event, GameFull, GameID};
 use licoricedev::models::game::Game;
+use tokio::sync::broadcast;
 use tokio::sync::mpsc::{Sender, UnboundedReceiver, UnboundedSender};
 use tokio_stream::StreamExt;
 
+use crate::game::TurnCounter;
+use crate::genius::Brain;
+
+// The username of the bot. TODO: make this configurable
 const BOT_USERNAME: &str = "poirebot";
 
 /// The world containing all games.
@@ -27,15 +31,25 @@ enum Message {
     /// Instruct to process the challenge (can accept or reject).
     NewChallenge(Challenge),
     /// Instruct to process the new game.
-    NewGame(GameID),
+    NewGame,
     /// Game/challenge is aborted.
-    Abort(GameID),
+    Abort,
     /// Game/challenge is aborted.
-    BoardChat(GameID, String, String),
+    BoardChat(String, String),
+    /// When the opponent has completed a move. The string is the description of the move.
+    OpponentMove(String),
+    /// When it's our turn to move.
+    BotMove,
 }
 
 /// Task that handles new game state messages.
-async fn message_loop(recv: &mut UnboundedReceiver<Message>, lichess: Arc<Lichess>) {
+async fn message_loop(
+    game_id: GameID,
+    recv: &mut UnboundedReceiver<Message>,
+    lichess: Arc<Lichess>,
+) {
+    let mut brain = Brain::new();
+
     while let Some(message) = recv.recv().await {
         match message {
             Message::NewChallenge(challenge) => {
@@ -59,20 +73,26 @@ async fn message_loop(recv: &mut UnboundedReceiver<Message>, lichess: Arc<Liches
                     break;
                 }
             }
-            Message::NewGame(game_id) => {
-                let id = game_id.id;
+            Message::NewGame => {
+                let id = game_id.id.clone();
                 info!("Game starting: {}", &id);
                 lichess
                     .write_in_bot_chat(&id, "player", "Welcome to the poire zone")
                     .await
                     .unwrap_or_else(|_| ());
             }
-            Message::Abort(game_id) => {
+            Message::Abort => {
                 info!("Game/Challenge aborted: {}", game_id.id);
                 break;
             }
-            Message::BoardChat(game_id, username, message) => {
-                info!("(Chat)\t\t{}\t\t{}", username, message);
+            Message::BoardChat(username, message) => {
+                info!("({})\t\t{}\t\t{}", game_id.id, username, message);
+            }
+            Message::OpponentMove(m) => {
+                info!("Opponent ({}) moved: {}", game_id.id, m);
+            }
+            Message::BotMove => {
+                info!("Our turn! ({})", game_id.id);
             }
         }
     }
@@ -123,7 +143,10 @@ async fn handle_new_challenge(
     let (sender, mut recv) = tokio::sync::mpsc::unbounded_channel::<Message>();
     world.games.insert(game_id.clone(), sender.clone());
 
-    tokio::spawn(async move { message_loop(&mut recv, lichess.clone()).await });
+    let game_id = GameID {
+        id: game_id.clone(),
+    };
+    tokio::spawn(async move { message_loop(game_id, &mut recv, lichess.clone()).await });
 
     sender
         .send(Message::NewChallenge(challenge))
@@ -151,10 +174,10 @@ async fn handle_new_game(
     // Replaces any existing communication
     world.games.insert(id.clone(), sender.clone());
 
-    tokio::spawn(async move { message_loop(&mut recv, lichess_a.clone()).await });
+    tokio::spawn(async move { message_loop(game_id, &mut recv, lichess_a.clone()).await });
 
     sender
-        .send(Message::NewGame(game_id))
+        .send(Message::NewGame)
         .unwrap_or_else(|e| error!("Failed to dispatch NewGame: {:?}", e));
 
     // Start consuming board events
@@ -165,11 +188,13 @@ async fn handle_new_game(
             .await
             .with_context(|| "Failed to get board event stream");
 
+        let mut turn_counter = TurnCounter::default();
+
         match event_stream {
             Ok(mut event_stream) => {
                 while let Some(event) = event_stream.next().await {
                     if let Ok(event) = event {
-                        dispatch_board_event(&sender, &id, event).await;
+                        dispatch_board_event(&sender, &id, &mut turn_counter, event).await;
                     }
                 }
                 info!("Stopped receiving events from board loop: {}", &id);
@@ -184,29 +209,58 @@ async fn handle_new_game(
 async fn dispatch_board_event(
     sender: &UnboundedSender<Message>,
     id: &str,
+    turn_counter: &mut TurnCounter,
     board_state: BoardState,
 ) {
-    let game_id = GameID { id: id.into() };
     debug!("Board event ({}): {:#?}", id, board_state);
     match board_state {
         BoardState::ChatLine(chat_line) => {
             let username = chat_line.username;
             if username != BOT_USERNAME {
                 sender
-                    .send(Message::BoardChat(game_id, username, chat_line.text))
+                    .send(Message::BoardChat(username, chat_line.text))
                     .unwrap_or_else(|_| ());
             }
         }
-        _ => (),
+        BoardState::GameFull(state) => {
+            if state.state.status == "started" {
+                if turn_counter.first_move {
+                    turn_counter.our_turn = is_bot_white(&state);
+                }
+                if turn_counter.our_turn {
+                    sender.send(Message::BotMove).unwrap_or_else(|_| ());
+                } else if turn_counter.first_move {
+                    // We're still waiting for the opponent's move.
+                } else {
+                    let m = last_move(&state.state.moves);
+                    sender.send(Message::OpponentMove(m)).unwrap_or_else(|_| ());
+                }
+                turn_counter.next();
+            } else {
+                warn!("Unhandled board status: {}", state.state.status);
+            }
+        }
+        BoardState::GameState(state) => {
+            if state.status == "started" {
+                if turn_counter.first_move {
+                    error!("Did not expect first move to be partial game state.");
+                } else {
+                    let m = last_move(&state.moves);
+                    sender.send(Message::OpponentMove(m)).unwrap_or_else(|_| ());
+                    sender.send(Message::BotMove).unwrap_or_else(|_| ());
+                }
+                turn_counter.next();
+            } else {
+                warn!("Unhandled board status: {}", state.status);
+            }
+        }
     }
 }
 
 /// Dispatches the 'Abort' message to the game, closing it.
 async fn abort_task(game_id: &str, world: &mut World) {
     if let Some(sender) = world.games.get(game_id) {
-        sender
-            .send(Message::Abort(GameID { id: game_id.into() }))
-            .unwrap_or_else(|_| ());
+        sender.send(Message::Abort).unwrap_or_else(|_| ());
         world.games.remove(game_id);
     } else {
         warn!(
@@ -370,4 +424,16 @@ pub async fn start_bot() -> anyhow::Result<()> {
     }
 
     Ok(())
+}
+
+fn is_bot_white(game_full: &GameFull) -> bool {
+    let white = &game_full.white;
+    match white {
+        Challengee::LightUser(user) => user.username == BOT_USERNAME,
+        Challengee::StockFish(_) => false,
+    }
+}
+
+fn last_move(moves: &str) -> String {
+    moves.split(' ').last().unwrap_or_default().to_string()
 }

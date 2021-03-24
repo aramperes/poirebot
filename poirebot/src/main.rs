@@ -8,6 +8,7 @@ use tokio_stream::StreamExt;
 mod game;
 mod lichess;
 mod pieces;
+mod genius;
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
