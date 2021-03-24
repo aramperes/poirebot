@@ -7,10 +7,12 @@ use anyhow::Context;
 use clap::{App, Arg};
 use licoricedev::client::Lichess;
 use licoricedev::models::board::Challengee::LightUser;
-use licoricedev::models::board::{Challenge, Event, GameID};
+use licoricedev::models::board::{BoardState, Challenge, Event, GameID};
 use licoricedev::models::game::Game;
 use tokio::sync::mpsc::{Sender, UnboundedReceiver, UnboundedSender};
 use tokio_stream::StreamExt;
+
+const BOT_USERNAME: &str = "poirebot";
 
 /// The world containing all games.
 #[derive(Default)]
@@ -28,6 +30,8 @@ enum Message {
     NewGame(GameID),
     /// Game/challenge is aborted.
     Abort(GameID),
+    /// Game/challenge is aborted.
+    BoardChat(GameID, String, String),
 }
 
 /// Task that handles new game state messages.
@@ -56,11 +60,19 @@ async fn message_loop(recv: &mut UnboundedReceiver<Message>, lichess: Arc<Liches
                 }
             }
             Message::NewGame(game_id) => {
-                info!("Game starting: {}", game_id.id);
+                let id = game_id.id;
+                info!("Game starting: {}", &id);
+                lichess
+                    .write_in_bot_chat(&id, "player", "Welcome to the poire zone")
+                    .await
+                    .unwrap_or_else(|_| ());
             }
             Message::Abort(game_id) => {
                 info!("Game/Challenge aborted: {}", game_id.id);
                 break;
+            }
+            Message::BoardChat(game_id, username, message) => {
+                info!("(Chat)\t\t{}\t\t{}", username, message);
             }
         }
     }
@@ -103,17 +115,16 @@ async fn handle_new_challenge(
     let game_id = challenge.id.clone();
     let challenger = challenge.challenger.clone().unwrap().username;
 
-    if challenger == "poirebot" {
+    if challenger == BOT_USERNAME {
         // Ignore challenges from self
         return Ok(());
     }
 
     let (sender, mut recv) = tokio::sync::mpsc::unbounded_channel::<Message>();
-    world.games.insert(game_id.clone(), sender);
+    world.games.insert(game_id.clone(), sender.clone());
 
     tokio::spawn(async move { message_loop(&mut recv, lichess.clone()).await });
 
-    let sender = world.games.get(&game_id).unwrap();
     sender
         .send(Message::NewChallenge(challenge))
         .unwrap_or_else(|e| error!("Failed to dispatch NewChallenge: {:?}", e));
@@ -128,6 +139,8 @@ async fn handle_new_game(
     lichess: Arc<Lichess>,
 ) -> anyhow::Result<()> {
     let id = game_id.clone().id;
+    let lichess_a = lichess.clone();
+    let lichess_b = lichess.clone();
 
     // If there is already a challenge task, abort it
     if world.games.contains_key(&id) {
@@ -135,16 +148,57 @@ async fn handle_new_game(
     }
 
     let (sender, mut recv) = tokio::sync::mpsc::unbounded_channel::<Message>();
-    world.games.insert(id.clone(), sender);
+    // Replaces any existing communication
+    world.games.insert(id.clone(), sender.clone());
 
-    tokio::spawn(async move { message_loop(&mut recv, lichess.clone()).await });
+    tokio::spawn(async move { message_loop(&mut recv, lichess_a.clone()).await });
 
-    let sender = world.games.get(&id).unwrap();
     sender
         .send(Message::NewGame(game_id))
         .unwrap_or_else(|e| error!("Failed to dispatch NewGame: {:?}", e));
 
+    // Start consuming board events
+    tokio::spawn(async move {
+        let event_stream = lichess_b
+            .clone()
+            .stream_bot_game_state(&id)
+            .await
+            .with_context(|| "Failed to get board event stream");
+
+        match event_stream {
+            Ok(mut event_stream) => {
+                while let Some(event) = event_stream.next().await {
+                    if let Ok(event) = event {
+                        dispatch_board_event(&sender, &id, event).await;
+                    }
+                }
+                info!("Stopped receiving events from board loop: {}", &id);
+            }
+            Err(e) => error!("{:?}", e),
+        }
+    });
+
     Ok(())
+}
+
+async fn dispatch_board_event(
+    sender: &UnboundedSender<Message>,
+    id: &str,
+    board_state: BoardState,
+) {
+    let game_id = GameID { id: id.into() };
+    debug!("Board event ({}): {:#?}", id, board_state);
+    match board_state {
+        BoardState::ChatLine(chat_line) => {
+            let username = chat_line.username;
+            if username != BOT_USERNAME {
+                sender
+                    .send(Message::BoardChat(game_id, username, chat_line.text))
+                    .unwrap_or_else(|_| ());
+            }
+        }
+        _ => (),
+    }
 }
 
 /// Dispatches the 'Abort' message to the game, closing it.
