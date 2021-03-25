@@ -36,7 +36,7 @@ impl Brain {
     }
 
     /// Select a move for the brain.
-    pub fn choose_move(&mut self, sensor: oneshot::Sender<Move>) {
+    pub fn choose_move(&mut self, sensor: oneshot::Sender<Option<Move>>) {
         let color = self.color;
         let board = self.board;
 
@@ -45,17 +45,17 @@ impl Brain {
 
             // Choose a random pawn and move forwards by one
             let pawns = board.get_pawns(color);
-            let pawn = pawns
-                .choose(&mut rand::thread_rng())
-                .expect("no pawn to move");
 
-            let origin = pawn.get_position();
-            let destination = origin.forwards(color, 1);
-            let promotion = Promotion::None;
-
-            sensor
-                .send(Move(origin, destination, promotion))
-                .expect("Failed to dispatch Brain move");
+            if let Some(pawn) = pawns.choose(&mut rand::thread_rng()) {
+                let origin = pawn.get_position();
+                let destination = origin.forwards(color, 1);
+                let promotion = Promotion::None;
+                sensor
+                    .send(Some(Move(origin, destination, promotion)))
+                    .expect("Failed to dispatch Brain move");
+            } else {
+                sensor.send(None).expect("Failed to dispatch Brain move");
+            }
         })
     }
 }

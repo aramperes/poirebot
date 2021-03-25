@@ -94,23 +94,30 @@ async fn message_loop(
             }
             Message::BotMove => {
                 info!("Our turn! ({})", game_id.id);
-                let (sensor, recv) = oneshot::channel::<Move>();
+                let (sensor, recv) = oneshot::channel::<Option<Move>>();
                 brain.choose_move(sensor);
 
                 let m = recv.await.unwrap();
-                brain.own_move(m);
-
-                if let Err(e) = lichess
-                    .make_a_bot_move(&game_id.id, m.to_lichess_notation().as_str(), false)
-                    .await
-                    .with_context(|| "Failed to dispatch move to Lichess")
-                {
-                    error!("{:?}", e);
+                if let Some(m) = m {
+                    if let Err(e) = lichess
+                        .make_a_bot_move(&game_id.id, m.to_lichess_notation().as_str(), false)
+                        .await
+                        .with_context(|| "Failed to dispatch move to Lichess")
+                    {
+                        error!("{:?}", e);
+                        lichess
+                            .resign_bot_game(&game_id.id)
+                            .await
+                            .unwrap_or_else(|_| ());
+                        break;
+                    }
+                    brain.own_move(m);
+                } else {
+                    error!("ran out of moves ({})", game_id.id);
                     lichess
                         .resign_bot_game(&game_id.id)
                         .await
                         .unwrap_or_else(|_| ());
-                    break;
                 }
             }
             Message::BotColor(color) => {
