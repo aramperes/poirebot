@@ -1,7 +1,7 @@
 use std::fmt::{Display, Formatter};
 
-use crate::bitboard::BitBoard;
-use crate::pieces::{Color, Pieces, Position};
+use crate::bitboard::{BitBoard, EMPTY};
+use crate::pieces::{Color, Piece, Pieces, Position};
 
 /// A chess piece move (origin and destination).
 #[derive(Debug, Clone, Copy)]
@@ -67,50 +67,170 @@ impl From<String> for Promotion {
 
 #[derive(Debug, Clone, Copy)]
 pub struct Board {
-    pub white_pieces: BitBoard,
-    pub black_pieces: BitBoard,
-    pub white_pawns: BitBoard,
-    pub black_pawns: BitBoard,
+    /// The `Color::White` board side.
+    pub white: BoardSide,
+    /// The `Color::Black` board side.
+    pub black: BoardSide,
+}
+
+#[derive(Debug, Clone, Copy)]
+pub struct BoardSide {
+    pub color: Color,
+    /// Where all this side's pawns are.
+    pub pawns: BitBoard,
+    /// Where all this side's rooks are.
+    pub rooks: BitBoard,
+    /// Where all this side's knights are.
+    pub knights: BitBoard,
+    /// Where all this side's bishops are.
+    pub bishops: BitBoard,
+    /// Where all this side's queens are.
+    pub queens: BitBoard,
+    /// Where this side's king is.
+    pub king: BitBoard,
+
+    /// Where all this side's pieces are.
+    pub pieces: BitBoard,
+    /// Inherited; squares attacked by this side's pieces.
+    pub attacks: BitBoard,
+}
+
+impl BoardSide {
+    /// Get the piece at the given position if any.
+    pub fn get_piece(&self, position: Position) -> Option<Pieces> {
+        let bb = BitBoard::from(position);
+
+        if (bb & self.pawns).popcnt() == 1 {
+            Some(Pieces::Pawn(crate::pieces::pawn::Pawn {
+                position,
+                color: self.color,
+            }))
+        } else {
+            None
+        }
+    }
+
+    /// Return a new instance for the other side.
+    pub fn flip(&self) -> Self {
+        Self {
+            color: self.color.opposite(),
+            pawns: self.pawns.reverse_colors(),
+            rooks: self.rooks.reverse_colors(),
+            knights: self.knights.reverse_colors(),
+            bishops: self.bishops.reverse_colors(),
+            queens: self.queens.reverse_colors(),
+            king: self.king.reverse_colors(),
+            pieces: self.pieces.reverse_colors(),
+            attacks: self.attacks.reverse_colors(),
+        }
+    }
+
+    /// Initialize a new side (empty at first) and then refresh inherited properties.
+    pub fn new<F: FnOnce(&mut Self)>(color: Color, f: F) -> Self {
+        let mut side = Self {
+            color,
+            pawns: EMPTY,
+            rooks: EMPTY,
+            knights: EMPTY,
+            bishops: EMPTY,
+            queens: EMPTY,
+            king: EMPTY,
+            pieces: EMPTY,
+            attacks: EMPTY,
+        };
+        side.mutate(f);
+        side
+    }
+
+    /// Mutates and then refresh inherited properties.
+    pub fn mutate<F: FnOnce(&mut Self)>(&mut self, f: F) {
+        f(self);
+        self.refresh();
+    }
+
+    /// Re-calculates inherited properties (attacks, pieces, etc.)
+    fn refresh(&mut self) -> &mut Self {
+        self.pieces =
+            self.pawns | self.rooks | self.knights | self.bishops | self.queens | self.king;
+        self.attacks = BitBoard::default(); // TODO: Calculate attacks
+        self
+    }
 }
 
 impl Board {
     /// Update the board after a player moved.
-    pub fn apply_move(&mut self, m: Move, color: Color) {
+    pub fn apply_move(&mut self, m: Move) {
+        eprintln!("Applying move {:?}", m);
         let Move(origin, destination, _promotion) = m;
-
         let origin_bb = BitBoard::from(origin);
         let destination_bb = BitBoard::from(destination);
 
+        let piece_moved = self
+            .get_piece(origin)
+            .expect("moved something that doesn't exist");
+        let color = piece_moved.get_color();
+
+        let (mut side, mut opponent) = match color {
+            Color::White => (self.white, self.black),
+            Color::Black => (self.black, self.white),
+        };
+        let piece_taken = self.get_piece(destination);
+
+        eprintln!("Piece moved {:?}", piece_moved);
+        eprintln!("Piece taken {:?}", piece_taken);
+
+        // Move the piece in the side
+        match piece_moved {
+            Pieces::Pawn(_) => {
+                side.mutate(|side| {
+                    // Move the pawn
+                    side.pawns &= !origin_bb;
+                    side.pawns |= destination_bb;
+                });
+                eprintln!("New pawns \n{}", side.pawns);
+                // TODO: Need to detect en-passant for pawns
+            }
+        }
+
+        // If a piece was taken, remove it from the opponent's side
+        if let Some(piece_taken) = piece_taken {
+            if piece_taken.get_color() == piece_moved.get_color() {
+                // TODO: This might be useful for castling
+                panic!(
+                    "Tried to friendly-fire: {:?} took {:?}",
+                    piece_moved, piece_taken
+                );
+            } else {
+                match piece_taken {
+                    Pieces::Pawn(_) => {
+                        opponent.mutate(|opponent| {
+                            // Remove the taken pawn
+                            opponent.pawns &= !destination_bb;
+                        });
+                    }
+                }
+            }
+        }
+
         match color {
-            Color::White => match self.get_piece(origin) {
-                Some(Pieces::Pawn(_)) => {
-                    self.white_pawns &= !origin_bb;
-                    self.white_pawns |= destination_bb;
-                    self.white_pieces &= !origin_bb;
-                    self.white_pieces |= destination_bb;
-                }
-                _ => (),
-            },
-            Color::Black => match self.get_piece(origin) {
-                Some(Pieces::Pawn(_)) => {
-                    self.black_pawns &= !origin_bb;
-                    self.black_pawns |= destination_bb;
-                    self.black_pieces &= !origin_bb;
-                    self.black_pieces |= destination_bb;
-                }
-                _ => (),
-            },
+            Color::White => {
+                self.white = side;
+                self.black = opponent;
+            }
+            Color::Black => {
+                self.black = side;
+                self.white = opponent;
+            }
         }
     }
 
     /// Get a list of pawns of the given color.
     pub fn get_pawns(&self, color: Color) -> Vec<crate::pieces::pawn::Pawn> {
-        let pawns = if color == Color::White {
-            self.white_pawns
-        } else {
-            self.black_pawns
+        let side = match color {
+            Color::White => self.white,
+            Color::Black => self.black,
         };
-        pawns
+        side.pawns
             .into_iter()
             .map(move |position| crate::pieces::pawn::Pawn { color, position })
             .collect()
@@ -118,43 +238,41 @@ impl Board {
 
     /// Get the piece at the given position if any.
     pub fn get_piece(&self, position: Position) -> Option<Pieces> {
-        let bb = BitBoard::from(position);
-        if (bb & self.white_pawns).popcnt() == 1 {
-            Some(Pieces::Pawn(crate::pieces::pawn::Pawn {
-                position,
-                color: Color::White,
-            }))
-        } else if (bb & self.black_pawns).popcnt() == 1 {
-            Some(Pieces::Pawn(crate::pieces::pawn::Pawn {
-                position,
-                color: Color::Black,
-            }))
-        } else {
-            None
-        }
+        self.white
+            .get_piece(position)
+            .or(self.black.get_piece(position))
+    }
+
+    /// Returns a bitboard for all the pieces in the board.
+    pub fn get_bitboard(&self) -> BitBoard {
+        self.white.pieces | self.black.pieces
     }
 }
+
 impl Default for Board {
     fn default() -> Self {
-        let white_pawns: BitBoard = BitBoard::from_position("a2".into())
-            | BitBoard::from_position("b2".into())
-            | BitBoard::from_position("c2".into())
-            | BitBoard::from_position("d2".into())
-            | BitBoard::from_position("e2".into())
-            | BitBoard::from_position("f2".into())
-            | BitBoard::from_position("g2".into())
-            | BitBoard::from_position("h2".into());
-        let black_pawns = white_pawns.reverse_colors();
+        let white = BoardSide::new(Color::White, |side| {
+            side.pawns = BitBoard::from_position("a2".into())
+                | BitBoard::from_position("b2".into())
+                | BitBoard::from_position("c2".into())
+                | BitBoard::from_position("d2".into())
+                | BitBoard::from_position("e2".into())
+                | BitBoard::from_position("f2".into())
+                | BitBoard::from_position("g2".into())
+                | BitBoard::from_position("h2".into());
+            side.rooks =
+                BitBoard::from_position("a1".into()) | BitBoard::from_position("h1".into());
+            side.knights =
+                BitBoard::from_position("b1".into()) | BitBoard::from_position("g1".into());
+            side.bishops =
+                BitBoard::from_position("c1".into()) | BitBoard::from_position("f1".into());
+            side.queens = BitBoard::from_position("d1".into());
+            side.king = BitBoard::from_position("e1".into());
+        });
 
-        let white_pieces = white_pawns.clone(); // TODO Add other pieces!
-        let black_pieces = white_pieces.reverse_colors();
+        let black = white.flip();
 
-        Self {
-            white_pieces,
-            black_pieces,
-            white_pawns,
-            black_pawns,
-        }
+        Self { white, black }
     }
 }
 
@@ -177,5 +295,27 @@ impl TurnCounter {
     pub fn next(&mut self) {
         self.first_move = false;
         self.our_turn = !self.our_turn;
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn create_default_board() {
+        let mut board = Board::default();
+        eprintln!("\nInitial Board:\n{}", board.get_bitboard());
+
+        board.apply_move(("a2", "a4").into());
+        board.apply_move(("a4", "a5").into());
+        board.apply_move(("a5", "a6").into());
+        board.apply_move(("a6", "b7").into());
+
+        eprintln!("\nFinal Board:\n{}", board.get_bitboard());
+        eprintln!("\nWhite Pieces:\n{}", board.white.pieces);
+        eprintln!("\nBlack Pieces:\n{}", board.black.pieces);
+
+        panic!("!!")
     }
 }

@@ -300,8 +300,6 @@ impl Iterator for BitBoard {
 
 #[cfg(test)]
 mod tests {
-    use crate::pieces::Position;
-
     use super::*;
 
     #[test]

@@ -27,12 +27,12 @@ impl Default for Brain {
 impl Brain {
     /// Apply a move from the opponent.
     pub fn opponent_move(&mut self, m: Move) {
-        self.board.apply_move(m, self.color.opposite());
+        self.board.apply_move(m);
     }
 
     /// Apply a move by the brain.
     pub fn own_move(&mut self, m: Move) {
-        self.board.apply_move(m, self.color);
+        self.board.apply_move(m);
     }
 
     /// Select a move for the brain.
