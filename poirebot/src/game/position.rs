@@ -72,6 +72,18 @@ impl Position {
         }
     }
 
+    /// Returns a new position, backwards by increment in the direction of the given color.
+    pub fn backwards(&self, color: Color, inc: u8) -> Self {
+        self.forwards(color.opposite(), inc)
+    }
+
+    /// Returns the distance between 2 positions on the Y axis (rank).
+    pub fn distance_rank(&self, other: &Position) -> u8 {
+        let s_y = self.rank_y as i32;
+        let o_y = other.rank_y as i32;
+        (s_y - o_y).abs() as u8
+    }
+
     /// Convert to `BitBoard` notation.
     pub fn to_int(&self) -> u8 {
         self.rank_y << 3 ^ self.file_x

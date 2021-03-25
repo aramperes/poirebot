@@ -2,7 +2,7 @@ use std::fmt::{Display, Formatter};
 
 use crate::bitboard::{BitBoard, EMPTY};
 use crate::game::position::Position;
-use crate::pieces::{get_castling_rook_move, Color, Pieces};
+use crate::pieces::{Color, get_castling_rook_move, is_pawn_two_step, Pieces};
 
 pub mod position;
 
@@ -104,6 +104,8 @@ pub struct BoardSide {
     pub pieces: BitBoard,
     /// Inherited; squares attacked by this side's pieces.
     pub attacks: BitBoard,
+    /// Pawn that could get en-passant'd in the next turn.
+    pub en_passant_target: BitBoard,
 
     /// Whether the king has already moved.
     pub king_has_moved: bool,
@@ -144,6 +146,7 @@ impl BoardSide {
             unmoved_rooks: self.unmoved_rooks.reverse_colors(),
             pieces: self.pieces.reverse_colors(),
             attacks: self.attacks.reverse_colors(),
+            en_passant_target: self.en_passant_target.reverse_colors(),
             king_has_moved: self.king_has_moved,
         }
     }
@@ -161,6 +164,7 @@ impl BoardSide {
             unmoved_rooks: EMPTY,
             pieces: EMPTY,
             attacks: EMPTY,
+            en_passant_target: EMPTY,
             king_has_moved: true,
         };
         side.mutate(f);
@@ -212,7 +216,19 @@ impl Board {
                         Promotion::Bishop => side.bishops |= destination_bb,
                         Promotion::Knight => side.knights |= destination_bb,
                     };
-                    // TODO: Need to detect en-passant for pawns
+
+                    if opponent.en_passant_target.popcnt() == 1 {
+                        let en_passant_target = opponent.en_passant_target.to_position();
+                        if en_passant_target == destination.backwards(color, 1) {
+                            // holy hell
+                            opponent.pawns &= !opponent.en_passant_target;
+                        }
+                    }
+
+                    opponent.en_passant_target = EMPTY;
+                    if is_pawn_two_step(&m) {
+                        side.en_passant_target |= destination_bb;
+                    }
                 });
             }
             Pieces::Rook(_, _) => {
@@ -220,30 +236,35 @@ impl Board {
                     side.rooks &= !origin_bb;
                     side.rooks |= destination_bb;
                     side.unmoved_rooks &= !origin_bb;
+                    opponent.en_passant_target = EMPTY;
                 });
             }
             Pieces::Knight(_, _) => {
                 side.mutate(|side| {
                     side.knights &= !origin_bb;
                     side.knights |= destination_bb;
+                    opponent.en_passant_target = EMPTY;
                 });
             }
             Pieces::Bishop(_, _) => {
                 side.mutate(|side| {
                     side.bishops &= !origin_bb;
                     side.bishops |= destination_bb;
+                    opponent.en_passant_target = EMPTY;
                 });
             }
             Pieces::Queen(_, _) => {
                 side.mutate(|side| {
                     side.queens &= !origin_bb;
                     side.queens |= destination_bb;
+                    opponent.en_passant_target = EMPTY;
                 });
             }
             Pieces::King(_, _) => {
                 side.mutate(|side| {
                     side.king &= !origin_bb;
                     side.king |= destination_bb;
+                    opponent.en_passant_target = EMPTY;
                     side.king_has_moved = true;
 
                     // Check if it was a castling move

@@ -100,6 +100,13 @@ pub fn get_castling_rook_move(king_move: &Move) -> Option<Move> {
     }
 }
 
+/// Whether the move was a pawn "two-step" (when they move by 2 from their original position).
+/// This function assumes the piece is already determined to be a pawn.
+pub fn is_pawn_two_step(pawn_move: &Move) -> bool {
+    let Move(origin, destination, _) = pawn_move;
+    origin.distance_rank(destination) == 2 && (origin.rank_y == 2 || origin.rank_y == 7)
+}
+
 /// A chess piece set (white or black).
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum Color {
