@@ -1,6 +1,7 @@
 use anyhow::Context;
 
 use crate::bitboard::BitBoard;
+use crate::game::position::Position;
 use crate::game::{Board, BoardSide};
 use crate::pieces::{Color, Pieces};
 
@@ -26,7 +27,7 @@ impl Board {
 
             for piece in rank_pieces.chars() {
                 if let Some(skip) = piece.to_digit(10) {
-                    file += (skip as u8);
+                    file += skip as u8;
                 } else {
                     let color = if piece.is_uppercase() {
                         Color::White
@@ -66,10 +67,26 @@ impl Board {
         let black_queenside_castle = castling_availability.contains('q');
         let black_kingside_castle = castling_availability.contains('k');
 
-        // TODO
         let en_passant_target = fen_split
             .next()
             .with_context(|| "no en passant target square")?;
+        let en_passant_target: Option<(Position, Color)> = match en_passant_target {
+            "-" => None,
+            p => {
+                let pos =
+                    Position::from_notation(p).with_context(|| "invalid en passant target")?;
+                let color = if pos.rank_y == 2 {
+                    // 3rd rank
+                    Color::White
+                } else if pos.rank_y == 5 {
+                    // 6th rank
+                    Color::Black
+                } else {
+                    return Err(anyhow::Error::msg("impossible en passant target"));
+                };
+                Some((pos, color))
+            }
+        };
 
         // TODO
         let half_move_clock = fen_split.next().with_context(|| "no half-move clock")?;
@@ -95,6 +112,11 @@ impl Board {
             if white_kingside_castle {
                 side.unmoved_rooks |= BitBoard::from_position("h1".into());
             }
+            if let Some((pos, color)) = en_passant_target {
+                if color == Color::White {
+                    side.en_passant_target |= BitBoard::from(pos.forwards(color, 1));
+                }
+            }
         });
         let black = BoardSide::new(Color::Black, |side| {
             for piece in pieces.iter().filter(|p| p.is_black()) {
@@ -112,6 +134,11 @@ impl Board {
             }
             if black_kingside_castle {
                 side.unmoved_rooks |= BitBoard::from_position("h8".into());
+            }
+            if let Some((pos, color)) = en_passant_target {
+                if color == Color::Black {
+                    side.en_passant_target |= BitBoard::from(pos.forwards(color, 1));
+                }
             }
         });
 

@@ -203,7 +203,7 @@ impl Board {
             Color::White => (self.white, self.black),
             Color::Black => (self.black, self.white),
         };
-        let piece_taken = self.get_piece(destination);
+        let mut piece_taken = self.get_piece(destination);
 
         // Move the piece in the side
         match piece_moved {
@@ -218,15 +218,18 @@ impl Board {
                         Promotion::Knight => side.knights |= destination_bb,
                     };
 
+                    // Detect capture via en-passant
                     if opponent.en_passant_target.popcnt() == 1 {
                         let en_passant_target = opponent.en_passant_target.to_position();
                         if en_passant_target == destination.backwards(color, 1) {
                             // holy hell
-                            opponent.pawns &= !opponent.en_passant_target;
+                            piece_taken = self.get_piece(en_passant_target);
                         }
                     }
 
                     opponent.en_passant_target = EMPTY;
+
+                    // When a pawn does a two-step, it becomes the en passant target
                     if is_pawn_two_step(&m) {
                         side.en_passant_target |= destination_bb;
                     }
@@ -291,30 +294,30 @@ impl Board {
         // If a piece was taken, remove it from the opponent's side
         if let Some(piece_taken) = piece_taken {
             if piece_taken.get_color() == piece_moved.get_color() {
-                // TODO: This might be useful for castling
                 panic!(
                     "Tried to friendly-fire: {:?} took {:?}",
                     piece_moved, piece_taken
                 );
             } else {
+                let remove_bb = BitBoard::from(piece_taken.get_position());
                 match piece_taken {
                     Pieces::Pawn(_, _) => {
-                        opponent.mutate(|opponent| opponent.pawns &= !destination_bb);
+                        opponent.mutate(|opponent| opponent.pawns &= !remove_bb);
                     }
                     Pieces::Rook(_, _) => {
-                        opponent.mutate(|opponent| opponent.rooks &= !destination_bb);
+                        opponent.mutate(|opponent| opponent.rooks &= !remove_bb);
                     }
                     Pieces::Knight(_, _) => {
-                        opponent.mutate(|opponent| opponent.knights &= !destination_bb);
+                        opponent.mutate(|opponent| opponent.knights &= !remove_bb);
                     }
                     Pieces::Bishop(_, _) => {
-                        opponent.mutate(|opponent| opponent.bishops &= !destination_bb);
+                        opponent.mutate(|opponent| opponent.bishops &= !remove_bb);
                     }
                     Pieces::Queen(_, _) => {
-                        opponent.mutate(|opponent| opponent.queens &= !destination_bb);
+                        opponent.mutate(|opponent| opponent.queens &= !remove_bb);
                     }
                     Pieces::King(_, _) => {
-                        opponent.mutate(|opponent| opponent.king &= !destination_bb);
+                        opponent.mutate(|opponent| opponent.king &= !remove_bb);
                     }
                 }
             }
@@ -586,5 +589,35 @@ mod tests {
             board.get_piece("f8".into()),
             Some(Pieces::Rook(Color::Black, "f8".into()))
         );
+    }
+
+    #[test]
+    fn test_black_en_passant() {
+        // Initialize with a board with imminent en passant by black
+        let board_fen = "rnbqkbnr/ppp1pppp/8/8/3pP3/8/PPPP1PPP/RNBQKBNR b KQkq e3 0 1";
+        let mut board = Board::from_fen(board_fen).unwrap();
+
+        // Do the en passant
+        board.apply_move(("d4", "e3").into());
+        assert_eq!(
+            board.get_piece("e3".into()),
+            Some(Pieces::Pawn(Color::Black, "e3".into()))
+        );
+        assert_eq!(board.get_piece("e4".into()), None);
+    }
+
+    #[test]
+    fn test_white_en_passant() {
+        // Initialize with a board with imminent en passant by white
+        let board_fen = "rnbqkbnr/ppp1pppp/8/3pP3/8/8/PPPP1PPP/RNBQKBNR w KQkq d6 0 1";
+        let mut board = Board::from_fen(board_fen).unwrap();
+
+        // Do the en passant
+        board.apply_move(("e5", "d6").into());
+        assert_eq!(
+            board.get_piece("d6".into()),
+            Some(Pieces::Pawn(Color::White, "d6".into()))
+        );
+        assert_eq!(board.get_piece("d5".into()), None);
     }
 }
