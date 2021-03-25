@@ -4,7 +4,7 @@ use rand::seq::SliceRandom;
 use tokio::sync::oneshot;
 
 use crate::game::{Board, Move, Promotion};
-use crate::pieces::{Color, Piece};
+use crate::pieces::Color;
 
 #[derive(Debug, Clone, Copy)]
 pub struct Brain {

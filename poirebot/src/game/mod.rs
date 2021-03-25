@@ -1,7 +1,10 @@
 use std::fmt::{Display, Formatter};
 
 use crate::bitboard::{BitBoard, EMPTY};
-use crate::pieces::{Color, Piece, Pieces, Position};
+use crate::game::position::Position;
+use crate::pieces::{Color, Pieces};
+
+pub mod position;
 
 /// A chess piece move (origin and destination).
 #[derive(Debug, Clone, Copy)]
@@ -10,6 +13,12 @@ pub struct Move(pub Position, pub Position, pub Promotion);
 impl From<(&str, &str)> for Move {
     fn from(m: (&str, &str)) -> Self {
         Move(m.0.into(), m.1.into(), Promotion::None)
+    }
+}
+
+impl From<(&str, &str, Promotion)> for Move {
+    fn from(m: (&str, &str, Promotion)) -> Self {
+        Move(m.0.into(), m.1.into(), m.2)
     }
 }
 
@@ -101,10 +110,17 @@ impl BoardSide {
         let bb = BitBoard::from(position);
 
         if (bb & self.pawns).popcnt() == 1 {
-            Some(Pieces::Pawn(crate::pieces::pawn::Pawn {
-                position,
-                color: self.color,
-            }))
+            Some(Pieces::Pawn(self.color, position))
+        } else if (bb & self.rooks).popcnt() == 1 {
+            Some(Pieces::Rook(self.color, position))
+        } else if (bb & self.knights).popcnt() == 1 {
+            Some(Pieces::Knight(self.color, position))
+        } else if (bb & self.bishops).popcnt() == 1 {
+            Some(Pieces::Bishop(self.color, position))
+        } else if (bb & self.queens).popcnt() == 1 {
+            Some(Pieces::Queen(self.color, position))
+        } else if (bb & self.king).popcnt() == 1 {
+            Some(Pieces::King(self.color, position))
         } else {
             None
         }
@@ -160,8 +176,7 @@ impl BoardSide {
 impl Board {
     /// Update the board after a player moved.
     pub fn apply_move(&mut self, m: Move) {
-        eprintln!("Applying move {:?}", m);
-        let Move(origin, destination, _promotion) = m;
+        let Move(origin, destination, promotion) = m;
         let origin_bb = BitBoard::from(origin);
         let destination_bb = BitBoard::from(destination);
 
@@ -176,21 +191,50 @@ impl Board {
         };
         let piece_taken = self.get_piece(destination);
 
-        eprintln!("Piece moved {:?}", piece_moved);
-        eprintln!("Piece taken {:?}", piece_taken);
-
         // Move the piece in the side
         match piece_moved {
-            Pieces::Pawn(_) => {
+            Pieces::Pawn(_, _) => {
                 side.mutate(|side| {
-                    // Move the pawn
                     side.pawns &= !origin_bb;
-                    side.pawns |= destination_bb;
+                    match promotion {
+                        Promotion::None => side.pawns |= destination_bb,
+                        Promotion::Queen => side.queens |= destination_bb,
+                        Promotion::Rook => side.rooks |= destination_bb,
+                        Promotion::Bishop => side.bishops |= destination_bb,
+                        Promotion::Knight => side.knights |= destination_bb,
+                    };
                 });
-                eprintln!("New pawns \n{}", side.pawns);
-                // TODO: Need to detect en-passant for pawns
+            }
+            Pieces::Rook(_, _) => {
+                side.mutate(|side| {
+                    side.rooks &= !origin_bb;
+                    side.rooks |= destination_bb;
+                });
+            }
+            Pieces::Knight(_, _) => {
+                side.mutate(|side| {
+                    side.knights &= !origin_bb;
+                    side.knights |= destination_bb;
+                });
+            }
+            Pieces::Bishop(_, _) => {
+                side.mutate(|side| {
+                    side.bishops &= !origin_bb;
+                    side.bishops |= destination_bb;
+                });
+            }
+            Pieces::Queen(_, _) => {
+                side.mutate(|side| {
+                    side.queens &= !origin_bb;
+                    side.queens |= destination_bb;
+                });
+            }
+            Pieces::King(_, _) => {
+                panic!("tried to take king");
             }
         }
+
+        // TODO: Need to detect en-passant for pawns
 
         // If a piece was taken, remove it from the opponent's side
         if let Some(piece_taken) = piece_taken {
@@ -202,11 +246,23 @@ impl Board {
                 );
             } else {
                 match piece_taken {
-                    Pieces::Pawn(_) => {
-                        opponent.mutate(|opponent| {
-                            // Remove the taken pawn
-                            opponent.pawns &= !destination_bb;
-                        });
+                    Pieces::Pawn(_, _) => {
+                        opponent.mutate(|opponent| opponent.pawns &= !destination_bb);
+                    }
+                    Pieces::Rook(_, _) => {
+                        opponent.mutate(|opponent| opponent.rooks &= !destination_bb);
+                    }
+                    Pieces::Knight(_, _) => {
+                        opponent.mutate(|opponent| opponent.knights &= !destination_bb);
+                    }
+                    Pieces::Bishop(_, _) => {
+                        opponent.mutate(|opponent| opponent.bishops &= !destination_bb);
+                    }
+                    Pieces::Queen(_, _) => {
+                        opponent.mutate(|opponent| opponent.queens &= !destination_bb);
+                    }
+                    Pieces::King(_, _) => {
+                        opponent.mutate(|opponent| opponent.king &= !destination_bb);
                     }
                 }
             }
@@ -225,14 +281,11 @@ impl Board {
     }
 
     /// Get a list of pawns of the given color.
-    pub fn get_pawns(&self, color: Color) -> Vec<crate::pieces::pawn::Pawn> {
-        let side = match color {
-            Color::White => self.white,
-            Color::Black => self.black,
-        };
+    pub fn get_pawns(&self, color: Color) -> Vec<Pieces> {
+        let side = self.get_side(color);
         side.pawns
             .into_iter()
-            .map(move |position| crate::pieces::pawn::Pawn { color, position })
+            .map(move |position| Pieces::Pawn(color, position))
             .collect()
     }
 
@@ -246,6 +299,13 @@ impl Board {
     /// Returns a bitboard for all the pieces in the board.
     pub fn get_bitboard(&self) -> BitBoard {
         self.white.pieces | self.black.pieces
+    }
+
+    fn get_side(&self, color: Color) -> BoardSide {
+        match color {
+            Color::White => self.white,
+            Color::Black => self.black,
+        }
     }
 }
 
@@ -304,18 +364,116 @@ mod tests {
 
     #[test]
     fn create_default_board() {
-        let mut board = Board::default();
-        eprintln!("\nInitial Board:\n{}", board.get_bitboard());
+        let board = Board::default();
 
+        // White Pawns
+        assert!(board.get_piece("a2".into()).unwrap().is_pawn());
+        assert!(board.get_piece("a2".into()).unwrap().is_white());
+        assert!(board.get_piece("b2".into()).unwrap().is_pawn());
+        assert!(board.get_piece("b2".into()).unwrap().is_white());
+        assert!(board.get_piece("c2".into()).unwrap().is_pawn());
+        assert!(board.get_piece("c2".into()).unwrap().is_white());
+        assert!(board.get_piece("d2".into()).unwrap().is_pawn());
+        assert!(board.get_piece("d2".into()).unwrap().is_white());
+        assert!(board.get_piece("e2".into()).unwrap().is_pawn());
+        assert!(board.get_piece("e2".into()).unwrap().is_white());
+        assert!(board.get_piece("f2".into()).unwrap().is_pawn());
+        assert!(board.get_piece("f2".into()).unwrap().is_white());
+        assert!(board.get_piece("g2".into()).unwrap().is_pawn());
+        assert!(board.get_piece("g2".into()).unwrap().is_white());
+        assert!(board.get_piece("h2".into()).unwrap().is_pawn());
+        assert!(board.get_piece("h2".into()).unwrap().is_white());
+
+        // White Rooks
+        assert!(board.get_piece("a1".into()).unwrap().is_rook());
+        assert!(board.get_piece("a1".into()).unwrap().is_white());
+        assert!(board.get_piece("h1".into()).unwrap().is_rook());
+        assert!(board.get_piece("h1".into()).unwrap().is_white());
+
+        // White Knights
+        assert!(board.get_piece("b1".into()).unwrap().is_knight());
+        assert!(board.get_piece("b1".into()).unwrap().is_white());
+        assert!(board.get_piece("g1".into()).unwrap().is_knight());
+        assert!(board.get_piece("g1".into()).unwrap().is_white());
+
+        // White Bishops
+        assert!(board.get_piece("c1".into()).unwrap().is_bishop());
+        assert!(board.get_piece("c1".into()).unwrap().is_white());
+        assert!(board.get_piece("f1".into()).unwrap().is_bishop());
+        assert!(board.get_piece("f1".into()).unwrap().is_white());
+
+        // White Queen
+        assert!(board.get_piece("d1".into()).unwrap().is_queen());
+        assert!(board.get_piece("d1".into()).unwrap().is_white());
+
+        // White King
+        assert!(board.get_piece("e1".into()).unwrap().is_king());
+        assert!(board.get_piece("e1".into()).unwrap().is_white());
+
+        // Black Pawns
+        assert!(board.get_piece("a7".into()).unwrap().is_pawn());
+        assert!(board.get_piece("a7".into()).unwrap().is_black());
+        assert!(board.get_piece("b7".into()).unwrap().is_pawn());
+        assert!(board.get_piece("b7".into()).unwrap().is_black());
+        assert!(board.get_piece("c7".into()).unwrap().is_pawn());
+        assert!(board.get_piece("c7".into()).unwrap().is_black());
+        assert!(board.get_piece("d7".into()).unwrap().is_pawn());
+        assert!(board.get_piece("d7".into()).unwrap().is_black());
+        assert!(board.get_piece("e7".into()).unwrap().is_pawn());
+        assert!(board.get_piece("e7".into()).unwrap().is_black());
+        assert!(board.get_piece("f7".into()).unwrap().is_pawn());
+        assert!(board.get_piece("f7".into()).unwrap().is_black());
+        assert!(board.get_piece("g7".into()).unwrap().is_pawn());
+        assert!(board.get_piece("g7".into()).unwrap().is_black());
+        assert!(board.get_piece("h7".into()).unwrap().is_pawn());
+        assert!(board.get_piece("h7".into()).unwrap().is_black());
+
+        // Black Rooks
+        assert!(board.get_piece("a8".into()).unwrap().is_rook());
+        assert!(board.get_piece("a8".into()).unwrap().is_black());
+        assert!(board.get_piece("h8".into()).unwrap().is_rook());
+        assert!(board.get_piece("h8".into()).unwrap().is_black());
+
+        // Black Knights
+        assert!(board.get_piece("b8".into()).unwrap().is_knight());
+        assert!(board.get_piece("b8".into()).unwrap().is_black());
+        assert!(board.get_piece("g8".into()).unwrap().is_knight());
+        assert!(board.get_piece("g8".into()).unwrap().is_black());
+
+        // Black Bishops
+        assert!(board.get_piece("c8".into()).unwrap().is_bishop());
+        assert!(board.get_piece("c8".into()).unwrap().is_black());
+        assert!(board.get_piece("f8".into()).unwrap().is_bishop());
+        assert!(board.get_piece("f8".into()).unwrap().is_black());
+
+        // Black Queen
+        assert!(board.get_piece("d8".into()).unwrap().is_queen());
+        assert!(board.get_piece("d8".into()).unwrap().is_black());
+
+        // Black King
+        assert!(board.get_piece("e8".into()).unwrap().is_king());
+        assert!(board.get_piece("e8".into()).unwrap().is_black());
+    }
+
+    #[test]
+    fn move_and_capture_and_promote() {
+        let mut board = Board::default();
+
+        // Move white pawn and take b7 pawn
         board.apply_move(("a2", "a4").into());
         board.apply_move(("a4", "a5").into());
         board.apply_move(("a5", "a6").into());
         board.apply_move(("a6", "b7").into());
 
-        eprintln!("\nFinal Board:\n{}", board.get_bitboard());
-        eprintln!("\nWhite Pieces:\n{}", board.white.pieces);
-        eprintln!("\nBlack Pieces:\n{}", board.black.pieces);
+        let pawn = board.get_piece("b7".into()).expect("should have piece");
+        assert_eq!(pawn.get_color(), Color::White);
+        assert!(pawn.is_pawn());
 
-        panic!("!!")
+        // Then take rook, which should promote
+        board.apply_move(("b7", "a8", Promotion::Queen).into());
+
+        let promoted = board.get_piece("a8".into()).expect("should have piece");
+        assert_eq!(promoted.get_color(), Color::White);
+        assert!(promoted.is_queen());
     }
 }
