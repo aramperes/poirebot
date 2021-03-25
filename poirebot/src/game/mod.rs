@@ -2,12 +2,12 @@ use std::fmt::{Display, Formatter};
 
 use crate::bitboard::{BitBoard, EMPTY};
 use crate::game::position::Position;
-use crate::pieces::{Color, Pieces};
+use crate::pieces::{get_castling_rook_move, Color, Pieces};
 
 pub mod position;
 
 /// A chess piece move (origin and destination).
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, Eq, PartialEq)]
 pub struct Move(pub Position, pub Position, pub Promotion);
 
 impl From<(&str, &str)> for Move {
@@ -29,7 +29,7 @@ impl From<(Position, Position)> for Move {
 }
 
 /// A pawn promotion decision. Use `None` when there is no promotion.
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Promotion {
     Queen,
     Rook,
@@ -97,14 +97,16 @@ pub struct BoardSide {
     pub queens: BitBoard,
     /// Where this side's king is.
     pub king: BitBoard,
+    /// Rooks that haven't moved.
+    pub unmoved_rooks: BitBoard,
 
     /// Inherited; Where all this side's pieces are.
     pub pieces: BitBoard,
     /// Inherited; squares attacked by this side's pieces.
     pub attacks: BitBoard,
 
-    /// Whether this side can still castle.
-    pub can_castle: bool,
+    /// Whether the king has already moved.
+    pub king_has_moved: bool,
 }
 
 impl BoardSide {
@@ -139,9 +141,10 @@ impl BoardSide {
             bishops: self.bishops.reverse_colors(),
             queens: self.queens.reverse_colors(),
             king: self.king.reverse_colors(),
+            unmoved_rooks: self.unmoved_rooks.reverse_colors(),
             pieces: self.pieces.reverse_colors(),
             attacks: self.attacks.reverse_colors(),
-            can_castle: self.can_castle,
+            king_has_moved: self.king_has_moved,
         }
     }
 
@@ -155,9 +158,10 @@ impl BoardSide {
             bishops: EMPTY,
             queens: EMPTY,
             king: EMPTY,
+            unmoved_rooks: EMPTY,
             pieces: EMPTY,
             attacks: EMPTY,
-            can_castle: true,
+            king_has_moved: true,
         };
         side.mutate(f);
         side
@@ -208,12 +212,14 @@ impl Board {
                         Promotion::Bishop => side.bishops |= destination_bb,
                         Promotion::Knight => side.knights |= destination_bb,
                     };
+                    // TODO: Need to detect en-passant for pawns
                 });
             }
             Pieces::Rook(_, _) => {
                 side.mutate(|side| {
                     side.rooks &= !origin_bb;
                     side.rooks |= destination_bb;
+                    side.unmoved_rooks &= !origin_bb;
                 });
             }
             Pieces::Knight(_, _) => {
@@ -238,14 +244,27 @@ impl Board {
                 side.mutate(|side| {
                     side.king &= !origin_bb;
                     side.king |= destination_bb;
-                    side.can_castle = false;
+                    side.king_has_moved = true;
 
-                    // TODO: Detect potential castling
+                    // Check if it was a castling move
+                    if let Some(Move(rook_origin, rook_destination, _)) = get_castling_rook_move(&m)
+                    {
+                        // Move the rook
+                        let rook_origin_bb = BitBoard::from(rook_origin);
+                        let rook_destination_b = BitBoard::from(rook_destination);
+
+                        // Ensure we are actually moving a rook
+                        assert_eq!((rook_origin_bb & side.rooks).popcnt(), 1);
+                        // Ensure the rook there hasn't moved before
+                        assert_eq!((rook_origin_bb & side.unmoved_rooks).popcnt(), 1);
+
+                        side.rooks &= !rook_origin_bb;
+                        side.rooks |= rook_destination_b;
+                        side.unmoved_rooks &= !rook_origin_bb;
+                    }
                 });
             }
         }
-
-        // TODO: Need to detect en-passant for pawns
 
         // If a piece was taken, remove it from the opponent's side
         if let Some(piece_taken) = piece_taken {

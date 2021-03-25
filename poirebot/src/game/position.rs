@@ -7,7 +7,7 @@ const FILES: [char; 8] = ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h'];
 const RANKS: [char; 8] = ['1', '2', '3', '4', '5', '6', '7', '8'];
 
 /// Position on the board.
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Position {
     /// The file index, 0 to 7 (maps A to H)
     pub file_x: u8,

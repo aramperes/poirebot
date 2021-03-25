@@ -1,6 +1,7 @@
 use std::fmt::Debug;
 
 use crate::game::position::Position;
+use crate::game::Move;
 
 /// A chess piece.
 #[derive(Debug, Clone, Copy)]
@@ -76,6 +77,26 @@ impl Pieces {
     /// Whether the piece is white.
     pub fn is_white(&self) -> bool {
         matches!(self.get_color(), Color::White)
+    }
+}
+
+/// When the king moves, find whether it was a castling action.
+/// If it is a castling move, return the corresponding `Move` for the rook.
+pub fn get_castling_rook_move(king_move: &Move) -> Option<Move> {
+    if *king_move == ("e1", "c1").into() {
+        // White Queenside (O-O-O)
+        Some(("a1", "d1").into())
+    } else if *king_move == ("e1", "g1").into() {
+        // White Kingside (O-O)
+        Some(("h1", "f1").into())
+    } else if *king_move == ("e8", "c8").into() {
+        // Black Queenside (O-O-O)
+        Some(("a8", "d8").into())
+    } else if *king_move == ("e8", "g8").into() {
+        // Black Kingside (O-O)
+        Some(("h8", "f8").into())
+    } else {
+        None
     }
 }
 
