@@ -4,7 +4,7 @@ use crate::game::position::Position;
 use crate::game::Move;
 
 /// A chess piece.
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, Eq, PartialEq)]
 pub enum Pieces {
     Pawn(Color, Position),
     Rook(Color, Position),
@@ -108,7 +108,7 @@ pub fn is_pawn_two_step(pawn_move: &Move) -> bool {
 }
 
 /// A chess piece set (white or black).
-#[derive(Debug, Clone, Copy, PartialEq)]
+#[derive(Debug, Clone, Copy, Eq, PartialEq)]
 pub enum Color {
     White,
     Black,

@@ -108,6 +108,15 @@ impl From<&str> for Position {
     }
 }
 
+/// Converts from `(file, rank)` tuple.
+/// Note that this function panics if an invalid values are given. Use `Position::new`
+/// for safer conversion.
+impl From<(u8, u8)> for Position {
+    fn from(p: (u8, u8)) -> Self {
+        Position::new(p.0, p.1).expect("invalid notation")
+    }
+}
+
 impl Display for Position {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         write!(f, "{}{}", FILES[self.file_x as usize], self.rank_y + 1)

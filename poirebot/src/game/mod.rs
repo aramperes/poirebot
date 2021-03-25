@@ -2,8 +2,9 @@ use std::fmt::{Display, Formatter};
 
 use crate::bitboard::{BitBoard, EMPTY};
 use crate::game::position::Position;
-use crate::pieces::{Color, get_castling_rook_move, is_pawn_two_step, Pieces};
+use crate::pieces::{get_castling_rook_move, is_pawn_two_step, Color, Pieces};
 
+pub mod fen;
 pub mod position;
 
 /// A chess piece move (origin and destination).
@@ -74,7 +75,7 @@ impl From<String> for Promotion {
     }
 }
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, Eq, PartialEq)]
 pub struct Board {
     /// The `Color::White` board side.
     pub white: BoardSide,
@@ -82,7 +83,7 @@ pub struct Board {
     pub black: BoardSide,
 }
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, Eq, PartialEq)]
 pub struct BoardSide {
     pub color: Color,
     /// Where all this side's pawns are.
@@ -165,7 +166,7 @@ impl BoardSide {
             pieces: EMPTY,
             attacks: EMPTY,
             en_passant_target: EMPTY,
-            king_has_moved: true,
+            king_has_moved: false,
         };
         side.mutate(f);
         side
@@ -379,6 +380,7 @@ impl Default for Board {
                 BitBoard::from_position("c1".into()) | BitBoard::from_position("f1".into());
             side.queens = BitBoard::from_position("d1".into());
             side.king = BitBoard::from_position("e1".into());
+            side.unmoved_rooks = side.rooks;
         });
 
         let black = white.flip();
@@ -526,5 +528,63 @@ mod tests {
         let promoted = board.get_piece("a8".into()).expect("should have piece");
         assert_eq!(promoted.get_color(), Color::White);
         assert!(promoted.is_queen());
+    }
+
+    #[test]
+    fn test_queenside_castling() {
+        // Initialize with a board that has the queenside rooks and kings only.
+        let board_fen = "r3k3/8/8/8/8/8/8/R3K3 w Qq - 0 1";
+        let mut board = Board::from_fen(board_fen).unwrap();
+
+        // White does queenside castle
+        board.apply_move(("e1", "c1").into());
+        assert_eq!(
+            board.get_piece("c1".into()),
+            Some(Pieces::King(Color::White, "c1".into()))
+        );
+        assert_eq!(
+            board.get_piece("d1".into()),
+            Some(Pieces::Rook(Color::White, "d1".into()))
+        );
+
+        // Black does queenside castle
+        board.apply_move(("e8", "c8").into());
+        assert_eq!(
+            board.get_piece("c8".into()),
+            Some(Pieces::King(Color::Black, "c8".into()))
+        );
+        assert_eq!(
+            board.get_piece("d8".into()),
+            Some(Pieces::Rook(Color::Black, "d8".into()))
+        );
+    }
+
+    #[test]
+    fn test_kingside_castling() {
+        // Initialize with a board that has the kingside rooks and kings only.
+        let board_fen = "4k2r/8/8/8/8/8/8/4K2R w Kk - 0 1";
+        let mut board = Board::from_fen(board_fen).unwrap();
+
+        // White does kingside castle
+        board.apply_move(("e1", "g1").into());
+        assert_eq!(
+            board.get_piece("g1".into()),
+            Some(Pieces::King(Color::White, "g1".into()))
+        );
+        assert_eq!(
+            board.get_piece("f1".into()),
+            Some(Pieces::Rook(Color::White, "f1".into()))
+        );
+
+        // Black does kingside castle
+        board.apply_move(("e8", "g8").into());
+        assert_eq!(
+            board.get_piece("g8".into()),
+            Some(Pieces::King(Color::Black, "g8".into()))
+        );
+        assert_eq!(
+            board.get_piece("f8".into()),
+            Some(Pieces::Rook(Color::Black, "f8".into()))
+        );
     }
 }
