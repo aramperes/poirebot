@@ -98,10 +98,13 @@ pub struct BoardSide {
     /// Where this side's king is.
     pub king: BitBoard,
 
-    /// Where all this side's pieces are.
+    /// Inherited; Where all this side's pieces are.
     pub pieces: BitBoard,
     /// Inherited; squares attacked by this side's pieces.
     pub attacks: BitBoard,
+
+    /// Whether this side can still castle.
+    pub can_castle: bool,
 }
 
 impl BoardSide {
@@ -138,6 +141,7 @@ impl BoardSide {
             king: self.king.reverse_colors(),
             pieces: self.pieces.reverse_colors(),
             attacks: self.attacks.reverse_colors(),
+            can_castle: self.can_castle,
         }
     }
 
@@ -153,6 +157,7 @@ impl BoardSide {
             king: EMPTY,
             pieces: EMPTY,
             attacks: EMPTY,
+            can_castle: true,
         };
         side.mutate(f);
         side
@@ -230,7 +235,13 @@ impl Board {
                 });
             }
             Pieces::King(_, _) => {
-                panic!("tried to take king");
+                side.mutate(|side| {
+                    side.king &= !origin_bb;
+                    side.king |= destination_bb;
+                    side.can_castle = false;
+
+                    // TODO: Detect potential castling
+                });
             }
         }
 
