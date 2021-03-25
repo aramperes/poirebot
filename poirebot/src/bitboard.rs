@@ -9,6 +9,16 @@ pub struct BitBoard(pub u64);
 #[allow(dead_code)]
 pub const EMPTY: BitBoard = BitBoard(0);
 
+/// The leftmost file, from white's perspective.
+#[allow(dead_code)]
+pub const FILE_A: BitBoard =
+    BitBoard(0b0000000100000001000000010000000100000001000000010000000100000001);
+
+/// The rightmost file, from white's perspective.
+#[allow(dead_code)]
+pub const FILE_H: BitBoard =
+    BitBoard(0b1000000010000000100000001000000010000000100000001000000010000000);
+
 impl BitAnd for BitBoard {
     type Output = BitBoard;
 

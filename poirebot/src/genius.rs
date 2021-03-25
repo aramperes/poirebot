@@ -3,6 +3,7 @@ use std::time::Duration;
 use rand::seq::SliceRandom;
 use tokio::sync::oneshot;
 
+use crate::game::position::Position;
 use crate::game::{Board, Move, Promotion};
 use crate::pieces::Color;
 
@@ -42,20 +43,52 @@ impl Brain {
 
         rayon::spawn(move || {
             std::thread::sleep(Duration::from_secs(1));
+            let mut m = None;
 
-            // Choose a random pawn and move forwards by one
-            let pawns = board.get_pawns(color);
+            // Check if we can attack anything with pawns
+            if let Some(destination) = board
+                .get_squares_attacked_by_pawns(color)
+                .into_iter()
+                .next()
+            {
+                // HACK: to find which pawn to use to attack, we re-use the same function
+                // but we make all enemy pieces pawns and see what THEY can attack
+                let mut board_swap = board.clone();
+                board_swap.mutate(|board| {
+                    let mut side = board.get_side_mut(color.opposite());
+                    side.mutate(|side| {
+                        (*side).pawns |= side.rooks;
+                        (*side).pawns |= side.knights;
+                        (*side).pawns |= side.bishops;
+                        (*side).pawns |= side.queens;
+                    });
+                });
+                info!("Flipped: \n{}", board_swap.get_side(color.opposite()).pawns);
+                let origin = board_swap
+                    .get_squares_attacked_by_pawns(color.opposite())
+                    .next()
+                    .expect("inconsistency while trying to get attacking pawn");
 
-            if let Some(pawn) = pawns.choose(&mut rand::thread_rng()) {
-                let origin = pawn.get_position();
-                let destination = origin.forwards(color, 1);
-                let promotion = Promotion::None;
-                sensor
-                    .send(Some(Move(origin, destination, promotion)))
-                    .expect("Failed to dispatch Brain move");
+                m = Some(Move(origin, destination, choose_promotion(destination)))
             } else {
-                sensor.send(None).expect("Failed to dispatch Brain move");
+                // Choose a random pawn and move forwards by one
+                let pawns = board.get_pawns(color);
+                if let Some(pawn) = pawns.choose(&mut rand::thread_rng()) {
+                    let origin = pawn.get_position();
+                    let destination = origin.forwards(color, 1);
+                    m = Some(Move(origin, destination, choose_promotion(destination)));
+                }
             }
+            sensor.send(m).expect("Failed to dispatch Brain move");
         })
+    }
+}
+
+/// Selects the promotion to get based on destination position.
+fn choose_promotion(destination: Position) -> Promotion {
+    if destination.rank_y == 0 || destination.rank_y == 7 {
+        Promotion::Queen
+    } else {
+        Promotion::None
     }
 }

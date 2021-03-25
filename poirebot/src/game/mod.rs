@@ -1,6 +1,6 @@
 use std::fmt::{Display, Formatter};
 
-use crate::bitboard::{BitBoard, EMPTY};
+use crate::bitboard::{BitBoard, EMPTY, FILE_A, FILE_H};
 use crate::game::position::Position;
 use crate::pieces::{get_castling_rook_move, is_pawn_two_step, Color, Pieces};
 
@@ -356,10 +356,52 @@ impl Board {
         self.white.pieces | self.black.pieces
     }
 
-    fn get_side(&self, color: Color) -> BoardSide {
+    /// Mutates and then refresh inherited properties.
+    pub fn mutate<F: FnOnce(&mut Self)>(&mut self, f: F) {
+        f(self);
+        self.white.refresh();
+        self.black.refresh();
+    }
+
+    /// Returns a bitboard with the opponent squares being attacked by one's side pawns.
+    /// Note: this doesn't mean the move is legal; it could cause a self-check for example.
+    pub fn get_squares_attacked_by_pawns(&self, color: Color) -> BitBoard {
+        let mut pawns = self.get_side(color).pawns.clone();
+        let mut own_squares = self.get_side(color).pieces.clone();
+        let mut opponent_squares = self.get_side(color.opposite()).pieces.clone();
+
+        // Normalize by flipping
+        if color == Color::Black {
+            pawns = pawns.reverse_colors();
+            own_squares = own_squares.reverse_colors();
+            opponent_squares = opponent_squares.reverse_colors();
+        };
+
+        let left_side_attacks = BitBoard((pawns & !FILE_A).0 << 7);
+        let right_side_attacks = BitBoard((pawns & !FILE_H).0 << 9);
+
+        let mut attacking =
+            ((left_side_attacks | right_side_attacks) & opponent_squares) & !own_squares;
+
+        // Flip back if normalized
+        if color == Color::Black {
+            attacking = attacking.reverse_colors();
+        };
+
+        attacking
+    }
+
+    pub fn get_side(&self, color: Color) -> BoardSide {
         match color {
             Color::White => self.white,
             Color::Black => self.black,
+        }
+    }
+
+    pub fn get_side_mut(&mut self, color: Color) -> &mut BoardSide {
+        match color {
+            Color::White => &mut self.white,
+            Color::Black => &mut self.black,
         }
     }
 }
@@ -619,5 +661,29 @@ mod tests {
             Some(Pieces::Pawn(Color::White, "d6".into()))
         );
         assert_eq!(board.get_piece("d5".into()), None);
+    }
+
+    #[test]
+    fn test_squares_attacked_by_pawns() {
+        // White pieces attacking
+        let board = Board::from_fen("8/8/8/8/p2p3p/1PP1P1P1/8/8 b - - 0 1").unwrap();
+        let attacked = board.get_squares_attacked_by_pawns(Color::Black);
+        assert_eq!(
+            attacked
+                .into_iter()
+                .map(|p| format!("{}", p))
+                .collect::<Vec<String>>(),
+            vec!["b3", "c3", "e3", "g3"]
+        );
+        // Black pieces attacking
+        let board = Board::from_fen("8/8/8/1pp1p1p1/P2P3P/8/8/8 w - - 0 1").unwrap();
+        let attacked = board.get_squares_attacked_by_pawns(Color::White);
+        assert_eq!(
+            attacked
+                .into_iter()
+                .map(|p| format!("{}", p))
+                .collect::<Vec<String>>(),
+            vec!["b5", "c5", "e5", "g5"]
+        );
     }
 }
