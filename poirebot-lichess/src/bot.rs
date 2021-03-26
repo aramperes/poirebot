@@ -4,13 +4,13 @@ use std::sync::Arc;
 use anyhow::Context;
 use licoricedev::client::Lichess;
 use licoricedev::models::board::{BoardState, Challenge, Challengee, Event, GameFull, GameID};
+use licoricedev::models::user::User;
 use tokio::sync::mpsc::{UnboundedReceiver, UnboundedSender};
 use tokio::sync::oneshot;
 use tokio_stream::StreamExt;
 
-use licoricedev::models::user::User;
 use poirebot::game::pieces::Color;
-use poirebot::game::{Move, TurnCounter};
+use poirebot::game::{Board, Move};
 use poirebot::genius::Brain;
 
 /// The world containing all games.
@@ -31,12 +31,10 @@ enum Message {
     Abort,
     /// Game/challenge is aborted.
     BoardChat(String, String),
-    /// When the opponent has completed a move. The string is the description of the move.
-    OpponentMove(String),
-    /// When it's our turn to move.
-    BotMove,
-    /// Updates the color of the bot.
-    BotColor(Color),
+    /// When a move comes through. The boolean is for whether the game is over.
+    Move(Move, Color, bool),
+    /// (re)Set the board (initial FEN, UCI moves, own color)
+    SetBoard(String, Vec<Move>, Color),
 }
 
 /// Configures the bot.
@@ -48,6 +46,24 @@ pub struct Config {
     pub no_accept: bool,
 }
 
+async fn find_and_send_move(
+    lichess: Arc<Lichess>,
+    game_id: &str,
+    brain: &mut Brain,
+) -> anyhow::Result<()> {
+    let (sensor, recv) = oneshot::channel::<Option<Move>>();
+    brain.choose_move(sensor);
+
+    let m = recv
+        .await
+        .with_context(|| "communication failure")?
+        .with_context(|| "ran out of moves")?;
+    lichess
+        .make_a_bot_move(game_id, m.to_pure_notation().as_str(), false)
+        .await
+        .with_context(|| "Failed to dispatch move to Lichess")
+}
+
 /// Task that handles new game state messages.
 async fn message_loop(
     game_id: GameID,
@@ -55,9 +71,10 @@ async fn message_loop(
     lichess: Arc<Lichess>,
     config: &Config,
 ) {
-    let mut brain = Brain::default();
+    let mut brain = Brain::new(Board::default(), Color::White); // Temporary value
 
     while let Some(message) = recv.recv().await {
+        debug!("({}) message loop: {:?}", &game_id.id, message);
         match message {
             Message::NewChallenge(challenge) => {
                 let challenger_name = challenge.challenger.clone().unwrap().username;
@@ -101,21 +118,21 @@ async fn message_loop(
             Message::BoardChat(username, message) => {
                 info!("({})\t\t{}\t\t{}", game_id.id, username, message);
             }
-            Message::OpponentMove(m) => {
-                info!("Opponent ({}) moved: {}", game_id.id, m);
-                brain.opponent_move(Move::from_pure_notation(&m));
-            }
-            Message::BotMove => {
-                info!("Our turn! ({})", game_id.id);
-                let (sensor, recv) = oneshot::channel::<Option<Move>>();
-                brain.choose_move(sensor);
+            Message::Move(m, color, game_over) => {
+                let bot_move = color == brain.color;
+                if bot_move {
+                    debug!("Bot moved: {}", m.to_pure_notation());
+                    brain.own_move(m);
+                } else {
+                    debug!("Opponent ({}) moved: {}", game_id.id, m.to_pure_notation());
+                    brain.opponent_move(m);
 
-                let m = recv.await.unwrap();
-                if let Some(m) = m {
-                    if let Err(e) = lichess
-                        .make_a_bot_move(&game_id.id, m.to_pure_notation().as_str(), false)
-                        .await
-                        .with_context(|| "Failed to dispatch move to Lichess")
+                    if game_over {
+                        break;
+                    }
+
+                    if let Err(e) =
+                        find_and_send_move(lichess.clone(), &game_id.id, &mut brain).await
                     {
                         error!("{:?}", e);
                         lichess
@@ -124,17 +141,30 @@ async fn message_loop(
                             .unwrap_or_else(|_| ());
                         break;
                     }
-                    brain.own_move(m);
-                } else {
-                    error!("ran out of moves ({})", game_id.id);
-                    lichess
-                        .resign_bot_game(&game_id.id)
-                        .await
-                        .unwrap_or_else(|_| ());
                 }
             }
-            Message::BotColor(color) => {
-                brain.color = color;
+            Message::SetBoard(fen, moves, own_color) => {
+                let mut board = Board::from_fen(&fen).expect("lichess sent invalid fen");
+                moves.iter().for_each(|m| board.apply_move(m.to_owned()));
+                brain = Brain::new(board, own_color);
+
+                let bots_turn = match own_color {
+                    Color::Black => moves.len() % 2 == 1,
+                    Color::White => moves.len() % 2 == 0,
+                };
+
+                if bots_turn {
+                    if let Err(e) =
+                        find_and_send_move(lichess.clone(), &game_id.id, &mut brain).await
+                    {
+                        error!("{:?}", e);
+                        lichess
+                            .resign_bot_game(&game_id.id)
+                            .await
+                            .unwrap_or_else(|_| ());
+                        break;
+                    }
+                }
             }
         }
     }
@@ -235,14 +265,11 @@ async fn handle_new_game(
             .await
             .with_context(|| "Failed to get board event stream");
 
-        let mut turn_counter = TurnCounter::default();
-
         match event_stream {
             Ok(mut event_stream) => {
                 while let Some(event) = event_stream.next().await {
                     if let Ok(event) = event {
-                        dispatch_board_event(&sender, &id, &mut turn_counter, event, &config_b)
-                            .await;
+                        dispatch_board_event(&sender, &id, event, &config_b).await;
                     }
                 }
                 info!("Stopped receiving events from board loop: {}", &id);
@@ -257,7 +284,6 @@ async fn handle_new_game(
 async fn dispatch_board_event(
     sender: &UnboundedSender<Message>,
     id: &str,
-    turn_counter: &mut TurnCounter,
     board_state: BoardState,
     config: &Config,
 ) {
@@ -273,36 +299,48 @@ async fn dispatch_board_event(
         }
         BoardState::GameFull(state) => {
             if state.state.status == "started" {
-                if turn_counter.first_move {
-                    let white = is_bot_white(&state, &config.username);
-                    turn_counter.our_turn = white;
-                    let color = if white { Color::White } else { Color::Black };
-                    sender.send(Message::BotColor(color)).unwrap_or_else(|_| ());
-                }
-                if turn_counter.our_turn {
-                    sender.send(Message::BotMove).unwrap_or_else(|_| ());
-                } else if state.state.moves.is_empty() {
-                    // We're still waiting for the opponent's move.
-                } else {
-                    let m = last_move(&state.state.moves);
-                    sender.send(Message::OpponentMove(m)).unwrap_or_else(|_| ());
-                    sender.send(Message::BotMove).unwrap_or_else(|_| ());
-                }
-                turn_counter.next();
+                let is_white = is_bot_white(&state, &config.username);
+                let color = if is_white { Color::White } else { Color::Black };
+
+                let initial_fen = state.initial_fen;
+                let moves = state
+                    .state
+                    .moves
+                    .split(' ')
+                    .filter(|s| !s.is_empty())
+                    .map(Move::from_pure_notation)
+                    .collect::<Vec<Move>>();
+
+                sender
+                    .send(Message::SetBoard(initial_fen, moves, color))
+                    .unwrap_or_else(|_| ());
             } else {
                 warn!("Unhandled board status: {}", state.state.status);
             }
         }
         BoardState::GameState(state) => {
             if state.status == "started" {
-                if turn_counter.first_move {
-                    error!("Did not expect first move to be partial game state.");
-                } else if turn_counter.our_turn {
-                    let m = last_move(&state.moves);
-                    sender.send(Message::OpponentMove(m)).unwrap_or_else(|_| ());
-                    sender.send(Message::BotMove).unwrap_or_else(|_| ());
-                }
-                turn_counter.next();
+                let moves = state
+                    .moves
+                    .split(' ')
+                    .filter(|s| !s.is_empty())
+                    .map(Move::from_pure_notation)
+                    .collect::<Vec<Move>>();
+
+                let last_move_color = if moves.len() % 2 == 1 {
+                    Color::White
+                } else {
+                    Color::Black
+                };
+
+                let last_move = moves.last().unwrap().to_owned();
+
+                // TODO: Handle draw
+                let game_over = state.winner.is_some();
+
+                sender
+                    .send(Message::Move(last_move, last_move_color, game_over))
+                    .unwrap_or_else(|_| ());
             } else {
                 warn!("Unhandled board status: {}", state.status);
             }
@@ -354,10 +392,6 @@ fn is_bot_white(game_full: &GameFull, bot_username: &str) -> bool {
         Challengee::LightUser(user) => user.username == bot_username,
         Challengee::StockFish(_) => false,
     }
-}
-
-fn last_move(moves: &str) -> String {
-    moves.split(' ').last().unwrap_or_default().to_string()
 }
 
 pub async fn send_user_challenge(lichess: Arc<Lichess>, username: String) -> anyhow::Result<()> {

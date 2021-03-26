@@ -15,17 +15,12 @@ pub struct Brain {
     board: Board,
 }
 
-impl Default for Brain {
-    /// An empty brain that doesn't have anything to do right now.
-    fn default() -> Self {
-        Brain {
-            color: Color::Black, // Note: this should be changed before the moves are given
-            board: Board::default(),
-        }
-    }
-}
-
 impl Brain {
+    /// Create a new brain with the given board and color.
+    pub fn new(board: Board, color: Color) -> Self {
+        Self { board, color }
+    }
+
     /// Apply a move from the opponent.
     pub fn opponent_move(&mut self, m: Move) {
         self.board.apply_move(m);
