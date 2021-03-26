@@ -115,7 +115,10 @@ async fn main() -> anyhow::Result<()> {
         start_bot(lichess, config).await
     } else if let Some(ref args) = args.subcommand_matches("upgrade-account") {
         if !args.is_present("yes") {
-            println!("Are you sure you want to upgrade {} to a BOT account?", &lichess_user.username);
+            println!(
+                "Are you sure you want to upgrade {} to a BOT account?",
+                &lichess_user.username
+            );
             print!("This action is IRREVERSIBLE [y/N]: ");
             std::io::stdout().flush().unwrap();
 
