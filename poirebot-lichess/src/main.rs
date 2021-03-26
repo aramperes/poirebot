@@ -14,8 +14,6 @@ mod bot;
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
-    init_logger();
-
     let args = App::new(clap::crate_name!())
         .version(clap::crate_version!())
         .author(clap::crate_authors!())
@@ -27,7 +25,16 @@ async fn main() -> anyhow::Result<()> {
                 .help("Personal authentication token for Lichess")
                 .env("LICHESS_TOKEN")
                 .required(true)
-                .takes_value(true),
+                .takes_value(true)
+        )
+        .arg(
+            Arg::with_name("debug")
+                .long("debug")
+                .alias("verbose")
+                .help("Turns on verbose logging")
+                .required(false)
+                .takes_value(false)
+                .global(true),
         )
         .subcommand(
             App::new("start")
@@ -76,6 +83,8 @@ async fn main() -> anyhow::Result<()> {
                 ),
         )
         .get_matches();
+
+    init_logger(args.is_present("debug"));
 
     let lichess = init_lichess(&args).with_context(|| "Failed to initialize Lichess")?;
     let lichess = Arc::new(lichess);
@@ -136,9 +145,12 @@ async fn main() -> anyhow::Result<()> {
     }
 }
 
-fn init_logger() {
+fn init_logger(debug: bool) {
     if let Err(_) = std::env::var("POIREBOT_LOG") {
         std::env::set_var("POIREBOT_LOG", "info");
+    }
+    if debug {
+        std::env::set_var("POIREBOT_LOG", "debug");
     }
     pretty_env_logger::try_init_timed_custom_env("POIREBOT_LOG")
         .expect("Invalid logger configuration");
