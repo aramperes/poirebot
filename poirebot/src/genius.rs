@@ -55,7 +55,7 @@ impl Brain {
                 // but we make all enemy pieces pawns and see what THEY can attack
                 let mut board_swap = board.clone();
                 board_swap.mutate(|board| {
-                    let mut side = board.get_side_mut(color.opposite());
+                    let side = board.get_side_mut(color.opposite());
                     side.mutate(|side| {
                         (*side).pawns |= side.rooks;
                         (*side).pawns |= side.knights;
@@ -63,7 +63,6 @@ impl Brain {
                         (*side).pawns |= side.queens;
                     });
                 });
-                info!("Flipped: \n{}", board_swap.get_side(color.opposite()).pawns);
                 let origin = board_swap
                     .get_squares_attacked_by_pawns(color.opposite())
                     .next()

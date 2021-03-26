@@ -1,3 +1,6 @@
+#[macro_use]
+extern crate log;
+
 use std::collections::HashMap;
 use std::sync::Arc;
 
@@ -9,9 +12,9 @@ use tokio::sync::mpsc::{UnboundedReceiver, UnboundedSender};
 use tokio::sync::oneshot;
 use tokio_stream::StreamExt;
 
-use crate::game::pieces::Color;
-use crate::game::{Move, TurnCounter};
-use crate::genius::Brain;
+use poirebot::game::pieces::Color;
+use poirebot::game::{Move, TurnCounter};
+use poirebot::genius::Brain;
 
 /// The world containing all games.
 #[derive(Default)]
@@ -486,6 +489,17 @@ pub async fn start_bot() -> anyhow::Result<()> {
     }
 
     Ok(())
+}
+
+#[tokio::main]
+async fn main() -> anyhow::Result<()> {
+    if let Err(_) = std::env::var("POIREBOT_LOG") {
+        std::env::set_var("POIREBOT_LOG", "info");
+    }
+    pretty_env_logger::try_init_timed_custom_env("POIREBOT_LOG")
+        .expect("Invalid logger configuration");
+
+    start_bot().await
 }
 
 fn is_bot_white(game_full: &GameFull, bot_username: &str) -> bool {

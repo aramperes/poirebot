@@ -1,5 +1,5 @@
 [package]
-name = "poirebot"
+name = "poirebot-lichess"
 version = "0.1.0"
 authors = ["Aram Peres <aram.peres@wavy.fm>"]
 edition = "2018"
@@ -9,9 +9,13 @@ edition = "2018"
 [dependencies]
 anyhow = "1"
 tokio = { version = "1.1.0", features = ["full"] }
+licoricedev = "0.1.2"
 log = "0.4.14"
+pretty_env_logger = "0.4.0"
 futures-util = "0.3.13"
 futures = "0.3.13"
 tokio-stream = "0.1.5"
-rayon = "1.5.0"
-rand = "0.8.3"
+clap = "2.33"
+
+[dependencies.poirebot]
+path = "../poirebot"

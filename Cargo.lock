@@ -802,14 +802,27 @@ name = "poirebot"
 version = "0.1.0"
 dependencies = [
  "anyhow",
+ "futures",
+ "futures-util",
+ "log",
+ "rand",
+ "rayon",
+ "tokio",
+ "tokio-stream",
+]
+
+[[package]]
+name = "poirebot-lichess"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
  "clap",
  "futures",
  "futures-util",
  "licoricedev",
  "log",
+ "poirebot",
  "pretty_env_logger",
- "rand",
- "rayon",
  "tokio",
  "tokio-stream",
 ]

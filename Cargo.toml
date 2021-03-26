@@ -1,5 +1,6 @@
 [workspace]
 
 members = [
-    "poirebot"
+    "poirebot",
+    "poirebot-lichess"
 ]
