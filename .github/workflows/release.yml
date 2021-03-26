@@ -46,17 +46,17 @@ jobs:
       RUST_BACKTRACE: 1
     strategy:
       matrix:
-        build: [ linux, macos, win-msvc ]
+        build: [ linux-amd64, macos-intel, windows ]
         include:
-          - build: linux
+          - build: linux-amd64
             os: ubuntu-18.04
             rust: stable
             target: x86_64-unknown-linux-musl
-          - build: macos
+          - build: macos-intel
             os: macos-latest
             rust: stable
             target: x86_64-apple-darwin
-          - build: win-msvc
+          - build: windows
             os: windows-2019
             rust: stable
             target: x86_64-pc-windows-msvc
@@ -103,12 +103,12 @@ jobs:
         shell: bash
         run: |
           mkdir -p ci/assets
-          if [ "${{ matrix.os }}" = "windows-2019" ]; then
+          if [ "${{ matrix.build }}" = "windows" ]; then
             cp "target/release/poirebot-lichess.exe" "ci/assets/poirebot-lichess.exe"
             echo "ASSET=poirebot-lichess.exe" >> $GITHUB_ENV
           else
-            cp "target/release/poirebot-lichess" "ci/assets/poirebot-lichess"
-            echo "ASSET=poirebot-lichess" >> $GITHUB_ENV
+            cp "target/release/poirebot-lichess" "ci/assets/poirebot-lichess-${{ matrix.build }}"
+            echo "ASSET=poirebot-lichess-${{ matrix.build }}" >> $GITHUB_ENV
           fi
 
       - name: Upload release archive
