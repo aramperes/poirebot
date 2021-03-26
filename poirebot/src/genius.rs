@@ -13,22 +13,33 @@ pub struct Brain {
     pub color: Color,
     /// The current board state.
     board: Board,
+    /// The last move by the brain.
+    pub last_move: Option<Move>,
+    /// The last move by the opponent.
+    pub opponent_last_move: Option<Move>,
 }
 
 impl Brain {
     /// Create a new brain with the given board and color.
     pub fn new(board: Board, color: Color) -> Self {
-        Self { board, color }
+        Self {
+            board,
+            color,
+            last_move: None,
+            opponent_last_move: None,
+        }
     }
 
     /// Apply a move from the opponent.
     pub fn opponent_move(&mut self, m: Move) {
         self.board.apply_move(m);
+        self.opponent_last_move = Some(m);
     }
 
     /// Apply a move by the brain.
     pub fn own_move(&mut self, m: Move) {
         self.board.apply_move(m);
+        self.last_move = Some(m);
     }
 
     /// Select a move for the brain.

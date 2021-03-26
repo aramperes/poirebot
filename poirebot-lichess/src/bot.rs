@@ -35,6 +35,8 @@ enum Message {
     Move(Move, Color, bool),
     /// (re)Set the board (initial FEN, UCI moves, own color)
     SetBoard(String, Vec<Move>, Color),
+    /// Handle when someone requests a draw
+    DrawOffer(Color),
 }
 
 /// Configures the bot.
@@ -121,9 +123,17 @@ async fn message_loop(
             Message::Move(m, color, game_over) => {
                 let bot_move = color == brain.color;
                 if bot_move {
+                    if brain.last_move == Some(m) {
+                        debug!("Ignored repeated bot move: {}", m.to_pure_notation());
+                        continue;
+                    }
                     debug!("Bot moved: {}", m.to_pure_notation());
                     brain.own_move(m);
                 } else {
+                    if brain.opponent_last_move == Some(m) {
+                        debug!("Ignored repeated opponent move: {}", m.to_pure_notation());
+                        continue;
+                    }
                     debug!("Opponent ({}) moved: {}", game_id.id, m.to_pure_notation());
                     brain.opponent_move(m);
 
@@ -153,6 +163,20 @@ async fn message_loop(
                     Color::White => moves.len() % 2 == 0,
                 };
 
+                let (last_move, opp_last_move) = if bots_turn {
+                    (
+                        moves.get(moves.len().wrapping_sub(2)).map(Move::to_owned),
+                        moves.last().map(Move::to_owned),
+                    )
+                } else {
+                    (
+                        moves.last().map(Move::to_owned),
+                        moves.get(moves.len().wrapping_sub(2)).map(Move::to_owned),
+                    )
+                };
+                brain.last_move = last_move;
+                brain.opponent_last_move = opp_last_move;
+
                 if bots_turn {
                     if let Err(e) =
                         find_and_send_move(lichess.clone(), &game_id.id, &mut brain).await
@@ -165,6 +189,10 @@ async fn message_loop(
                         break;
                     }
                 }
+            }
+            Message::DrawOffer(_) => {
+                // Ignore draw offers right now
+                // Note: this gets declined automatically when the other player/bot moves
             }
         }
     }
@@ -320,6 +348,16 @@ async fn dispatch_board_event(
         }
         BoardState::GameState(state) => {
             if state.status == "started" {
+                if state.bdraw {
+                    sender
+                        .send(Message::DrawOffer(Color::Black))
+                        .unwrap_or_else(|_| ());
+                } else if state.wdraw {
+                    sender
+                        .send(Message::DrawOffer(Color::White))
+                        .unwrap_or_else(|_| ());
+                }
+
                 let moves = state
                     .moves
                     .split(' ')
