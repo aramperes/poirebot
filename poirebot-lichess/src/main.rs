@@ -25,7 +25,7 @@ async fn main() -> anyhow::Result<()> {
                 .help("Personal authentication token for Lichess")
                 .env("LICHESS_TOKEN")
                 .required(true)
-                .takes_value(true)
+                .takes_value(true),
         )
         .arg(
             Arg::with_name("debug")
