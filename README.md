@@ -4,6 +4,7 @@ A chess engine and bot written in Rust.
 
 [![Build status](https://github.com/aramperes/poirebot/actions/workflows/build.yml/badge.svg)](https://github.com/aramperes/poirebot/actions)
 [![Crates.io](https://img.shields.io/crates/v/poirebot.svg)](https://crates.io/crates/poirebot)
+[![Crates.io](https://img.shields.io/github/v/tag/aramperes/poirebot?label=release)](https://github.com/aramperes/poirebot/releases/latest)
 
 ## Playing against poirebot
 
