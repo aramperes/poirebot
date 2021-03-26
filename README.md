@@ -9,7 +9,7 @@ The bot is occasionally up on Lichess.org with the account [@poirebot](https://l
 Until the bot is live 24/7, you may want to run it locally to try it out. You should create a new Lichess.org that will
 then become a *BOT* account.
 
-1. Create a new Lichess.org account for the bot
+1. Create a new [Lichess.org](https://lichess.org) account for the bot
 2. Generate a new Personal Access Token (PAT) by going to https://lichess.org/account/oauth/token/create
 3. Give it a description, and select all options **except:** *Read Preferences, Write preferences, Read email address*
 4. Store the token in the `LICHESS_TOKEN` environment variable (or you can also use the `--token` flag later)

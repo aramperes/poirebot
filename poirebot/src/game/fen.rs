@@ -11,6 +11,10 @@ pub const DEFAULT_FEN: &str = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQk
 impl Board {
     /// Convert a Forsyth–Edwards Notation (FEN) string to `Board`
     pub fn from_fen(fen: &str) -> anyhow::Result<Self> {
+        if fen == "startpos" {
+            return Self::from_fen(DEFAULT_FEN);
+        }
+
         let mut fen_split = fen.split_whitespace();
 
         let piece_placement = fen_split.next().with_context(|| "no piece placement")?;
