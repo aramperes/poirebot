@@ -1,6 +1,9 @@
 # poirebot
 
-A chess bot written in Rust.
+A chess engine and bot written in Rust.
+
+[![Build status](https://github.com/aramperes/poirebot/actions/workflows/build.yml/badge.svg)](https://github.com/aramperes/poirebot/actions)
+[![Crates.io](https://img.shields.io/crates/v/poirebot.svg)](https://crates.io/crates/poirebot)
 
 ## Playing against poirebot
 
