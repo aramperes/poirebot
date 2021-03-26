@@ -1,15 +1,3 @@
-The way this works is a little weird. But basically, the create-release job
-# runs purely to initialize the GitHub release itself. Once done, the upload
-# URL of the release is saved as an artifact.
-#
-# The build-release job runs only once create-release is finished. It gets
-# the release upload URL by downloading the corresponding artifact (which was
-# uploaded by create-release). It then builds the release executables for each
-# supported platform and attaches them as release assets to the previously
-# created release.
-#
-# The key here is that we create the release only once.
-
 name: release
 on:
   push:
