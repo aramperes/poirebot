@@ -8,6 +8,7 @@ use tokio::sync::mpsc::{UnboundedReceiver, UnboundedSender};
 use tokio::sync::oneshot;
 use tokio_stream::StreamExt;
 
+use licoricedev::models::user::User;
 use poirebot::game::pieces::Color;
 use poirebot::game::{Move, TurnCounter};
 use poirebot::genius::Brain;
@@ -459,4 +460,12 @@ fn ascii_art(config: &Config) {
     info!(r" //__\     https://lichess.org/@/{}"       , &config.username);
     info!(r" )___("                                     );
     info!(r"");
+}
+
+pub async fn upgrade_bot_account(lichess: Arc<Lichess>, user: &User) -> anyhow::Result<()> {
+    warn!("Upgrading account {} to a BOT account...", user.username);
+    lichess
+        .upgrade_to_bot_account()
+        .await
+        .with_context(|| "Upgrade failed")
 }

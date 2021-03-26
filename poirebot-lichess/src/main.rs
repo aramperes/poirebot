@@ -1,12 +1,14 @@
 #[macro_use]
 extern crate log;
 
+use std::io::{stdin, BufRead, Write};
+use std::sync::Arc;
+
 use anyhow::Context;
 use clap::{App, Arg, ArgMatches};
 use licoricedev::client::Lichess;
 
 use crate::bot::{abort_games, send_stockfish_challenge, send_user_challenge, start_bot};
-use std::sync::Arc;
 
 mod bot;
 
@@ -27,35 +29,51 @@ async fn main() -> anyhow::Result<()> {
                 .required(true)
                 .takes_value(true),
         )
-        .arg(
-            Arg::with_name("challenge")
-                .short("c")
-                .long("challenge")
-                .help("Lichess username to send a challenge to on startup")
-                .required(false)
-                .takes_value(true),
+        .subcommand(
+            App::new("start")
+                .about("Starts the bot to run on Lichess.org")
+                .arg(
+                    Arg::with_name("challenge")
+                        .short("c")
+                        .long("challenge")
+                        .help("Lichess username to send a challenge to on startup")
+                        .required(false)
+                        .takes_value(true),
+                )
+                .arg(
+                    Arg::with_name("stockfish")
+                        .long("stockfish")
+                        .help("Start a Stockfish duel with the given strength (1-8)")
+                        .takes_value(true)
+                        .conflicts_with("challenge")
+                        .required(false),
+                )
+                .arg(
+                    Arg::with_name("abort")
+                        .long("abort")
+                        .help("Aborts all ongoing games")
+                        .takes_value(false)
+                        .required(false),
+                )
+                .arg(
+                    Arg::with_name("no-accept")
+                        .long("no-accept")
+                        .help("Disables all incoming challenges")
+                        .takes_value(false)
+                        .required(false),
+                ),
         )
-        .arg(
-            Arg::with_name("stockfish")
-                .long("stockfish")
-                .help("Start a Stockfish duel with the given strength (1-8)")
-                .takes_value(true)
-                .conflicts_with("challenge")
-                .required(false),
-        )
-        .arg(
-            Arg::with_name("abort")
-                .long("abort")
-                .help("Aborts all ongoing games")
-                .takes_value(false)
-                .required(false),
-        )
-        .arg(
-            Arg::with_name("no-accept")
-                .long("no-accept")
-                .help("Disables all incoming challenges")
-                .takes_value(false)
-                .required(false),
+        .subcommand(
+            App::new("upgrade-account")
+                .about("Upgrades the Lichess.org account to a BOT account (irreversible)")
+                .arg(
+                    Arg::with_name("yes")
+                        .short("y")
+                        .long("yes")
+                        .help("Skip the confirmation step")
+                        .required(false)
+                        .takes_value(false),
+                ),
         )
         .get_matches();
 
@@ -67,33 +85,52 @@ async fn main() -> anyhow::Result<()> {
         .await
         .with_context(|| "Failed to get current user profile")?;
 
-    // Abort if specified
-    if args.is_present("abort") {
-        abort_games(lichess.clone())
+    if let Some(ref args) = args.subcommand_matches("start") {
+        // Abort if specified
+        if args.is_present("abort") {
+            abort_games(lichess.clone())
+                .await
+                .with_context(|| "Failed to resign ongoing games")?;
+        }
+
+        // Challenge if specified
+        if let Some(challenge_username) = args.value_of("challenge") {
+            send_user_challenge(lichess.clone(), challenge_username.into())
+                .await
+                .with_context(|| format!("Failed to send challenge to {}", challenge_username))?;
+        } else if let Some(stockfish_level) = args.value_of("stockfish") {
+            send_stockfish_challenge(
+                lichess.clone(),
+                stockfish_level.parse().expect("invalid stockfish level"),
+            )
             .await
-            .with_context(|| "Failed to resign ongoing games")?;
+            .with_context(|| format!("Failed to send challenge to Stockfish"))?;
+        }
+
+        let config = bot::Config {
+            no_accept: args.is_present("no-accept"),
+            username: lichess_user.username.clone(),
+        };
+
+        start_bot(lichess, config).await
+    } else if let Some(ref args) = args.subcommand_matches("upgrade-account") {
+        if !args.is_present("yes") {
+            println!("Are you sure you want to upgrade {} to a BOT account?", &lichess_user.username);
+            print!("This action is IRREVERSIBLE [y/N]: ");
+            std::io::stdout().flush().unwrap();
+
+            let stdin = stdin();
+            let mut line = String::new();
+            stdin.read_line(&mut line).expect("failed to read stdin");
+            if line.trim().to_lowercase() != "y" {
+                println!("Aborted");
+                return Ok(());
+            }
+        }
+        bot::upgrade_bot_account(lichess, &lichess_user).await
+    } else {
+        Ok(())
     }
-
-    // Challenge if specified
-    if let Some(challenge_username) = args.value_of("challenge") {
-        send_user_challenge(lichess.clone(), challenge_username.into())
-            .await
-            .with_context(|| format!("Failed to send challenge to {}", challenge_username))?;
-    } else if let Some(stockfish_level) = args.value_of("stockfish") {
-        send_stockfish_challenge(
-            lichess.clone(),
-            stockfish_level.parse().expect("invalid stockfish level"),
-        )
-        .await
-        .with_context(|| format!("Failed to send challenge to Stockfish"))?;
-    }
-
-    let config = bot::Config {
-        no_accept: args.is_present("no-accept"),
-        username: lichess_user.username.clone(),
-    };
-
-    start_bot(lichess, config).await
 }
 
 fn init_logger() {
