@@ -3,7 +3,11 @@ name = "poirebot-lichess"
 version = "0.1.0"
 authors = ["Aram Peres <aram.peres@wavy.fm>"]
 edition = "2018"
-description = "A chess bot written in Rust"
+description = "A chess bot for Lichess written in Rust"
+license = "MIT"
+homepage = "https://github.com/aramperes/poirebot"
+repository = "https://github.com/aramperes/poirebot"
+readme = "../README.md"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
@@ -20,3 +24,4 @@ clap = "2.33"
 
 [dependencies.poirebot]
 path = "../poirebot"
+version = "0.1.0"
