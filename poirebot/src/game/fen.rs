@@ -1,9 +1,9 @@
 use anyhow::Context;
 
 use crate::bitboard::BitBoard;
+use crate::game::pieces::{Color, Pieces};
 use crate::game::position::Position;
 use crate::game::{Board, BoardSide};
-use crate::pieces::{Color, Pieces};
 
 /// The default starting position in FEN.
 pub const DEFAULT_FEN: &str = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1";

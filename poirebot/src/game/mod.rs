@@ -1,10 +1,11 @@
 use std::fmt::{Display, Formatter};
 
 use crate::bitboard::{BitBoard, EMPTY, FILE_A, FILE_H};
+use crate::game::pieces::{get_castling_rook_move, is_pawn_two_step, Color, Pieces};
 use crate::game::position::Position;
-use crate::pieces::{get_castling_rook_move, is_pawn_two_step, Color, Pieces};
 
 pub mod fen;
+pub mod pieces;
 pub mod position;
 
 /// A chess piece move (origin and destination).
@@ -26,6 +27,31 @@ impl From<(&str, &str, Promotion)> for Move {
 impl From<(Position, Position)> for Move {
     fn from(m: (Position, Position)) -> Self {
         Move(m.0, m.1, Promotion::None)
+    }
+}
+
+impl Move {
+    /// Convert a `Move` to Algebraic Pure Coordinate Notation.
+    ///
+    /// Ref: https://www.chessprogramming.org/Algebraic_Chess_Notation#Pure_coordinate_notation
+    ///
+    /// For example: `Move(a1, a2, Queen)` becomes `"a1a2q"`.
+    pub fn to_pure_notation(&self) -> String {
+        let Move(origin, destination, promotion) = self;
+        format!("{}{}{}", origin, destination, promotion)
+    }
+
+    /// Convert a `Move` from Algebraic Pure Coordinate Notation.
+    ///
+    /// Ref: https://www.chessprogramming.org/Algebraic_Chess_Notation#Pure_coordinate_notation
+    ///
+    /// For example: `"a1a2q"` becomes `Move(a1, a2, Queen)`.
+    pub fn from_pure_notation(notation: &str) -> Self {
+        let origin = notation.chars().take(2).collect::<String>();
+        let destination = notation.chars().skip(2).take(2).collect::<String>();
+        let promotion = notation.chars().skip(3).take(1).collect::<String>();
+
+        Move(origin.into(), destination.into(), promotion.into())
     }
 }
 
@@ -100,13 +126,13 @@ pub struct BoardSide {
     pub king: BitBoard,
     /// Rooks that haven't moved.
     pub unmoved_rooks: BitBoard,
+    /// Pawn that could get en-passant'd in the next turn.
+    pub en_passant_target: BitBoard,
 
     /// Inherited; Where all this side's pieces are.
     pub pieces: BitBoard,
     /// Inherited; squares attacked by this side's pieces.
     pub attacks: BitBoard,
-    /// Pawn that could get en-passant'd in the next turn.
-    pub en_passant_target: BitBoard,
 
     /// Whether the king has already moved.
     pub king_has_moved: bool,

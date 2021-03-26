@@ -9,12 +9,9 @@ use tokio::sync::mpsc::{UnboundedReceiver, UnboundedSender};
 use tokio::sync::oneshot;
 use tokio_stream::StreamExt;
 
+use crate::game::pieces::Color;
 use crate::game::{Move, TurnCounter};
 use crate::genius::Brain;
-use crate::pieces::Color;
-
-// The username of the bot. TODO: make this configurable
-const BOT_USERNAME: &str = "poirebot";
 
 /// The world containing all games.
 #[derive(Default)]
@@ -90,7 +87,7 @@ async fn message_loop(
             }
             Message::OpponentMove(m) => {
                 info!("Opponent ({}) moved: {}", game_id.id, m);
-                brain.opponent_move(Move::from_lichess_notation(&m));
+                brain.opponent_move(Move::from_pure_notation(&m));
             }
             Message::BotMove => {
                 info!("Our turn! ({})", game_id.id);
@@ -100,7 +97,7 @@ async fn message_loop(
                 let m = recv.await.unwrap();
                 if let Some(m) = m {
                     if let Err(e) = lichess
-                        .make_a_bot_move(&game_id.id, m.to_lichess_notation().as_str(), false)
+                        .make_a_bot_move(&game_id.id, m.to_pure_notation().as_str(), false)
                         .await
                         .with_context(|| "Failed to dispatch move to Lichess")
                     {
@@ -160,11 +157,12 @@ async fn handle_new_challenge(
     challenge: Challenge,
     world: &mut World,
     lichess: Arc<Lichess>,
+    bot_username: &str,
 ) -> anyhow::Result<()> {
     let game_id = challenge.id.clone();
     let challenger = challenge.challenger.clone().unwrap().username;
 
-    if challenger == BOT_USERNAME {
+    if challenger == bot_username {
         // Ignore challenges from self
         return Ok(());
     }
@@ -189,7 +187,9 @@ async fn handle_new_game(
     game_id: GameID,
     world: &mut World,
     lichess: Arc<Lichess>,
+    bot_username: &str,
 ) -> anyhow::Result<()> {
+    let bot_username = String::from(bot_username);
     let id = game_id.clone().id;
     let lichess_a = lichess.clone();
     let lichess_b = lichess.clone();
@@ -223,7 +223,8 @@ async fn handle_new_game(
             Ok(mut event_stream) => {
                 while let Some(event) = event_stream.next().await {
                     if let Ok(event) = event {
-                        dispatch_board_event(&sender, &id, &mut turn_counter, event).await;
+                        dispatch_board_event(&sender, &id, &mut turn_counter, event, &bot_username)
+                            .await;
                     }
                 }
                 info!("Stopped receiving events from board loop: {}", &id);
@@ -240,12 +241,13 @@ async fn dispatch_board_event(
     id: &str,
     turn_counter: &mut TurnCounter,
     board_state: BoardState,
+    bot_username: &str,
 ) {
     debug!("Board event ({}): {:#?}", id, board_state);
     match board_state {
         BoardState::ChatLine(chat_line) => {
             let username = chat_line.username;
-            if username != BOT_USERNAME {
+            if username != bot_username {
                 sender
                     .send(Message::BoardChat(username, chat_line.text))
                     .unwrap_or_else(|_| ());
@@ -254,7 +256,7 @@ async fn dispatch_board_event(
         BoardState::GameFull(state) => {
             if state.state.status == "started" {
                 if turn_counter.first_move {
-                    let white = is_bot_white(&state);
+                    let white = is_bot_white(&state, &bot_username);
                     turn_counter.our_turn = white;
                     let color = if white { Color::White } else { Color::Black };
                     sender.send(Message::BotColor(color)).unwrap_or_else(|_| ());
@@ -307,13 +309,16 @@ async fn process_incoming_event(
     event: Event,
     world: &mut World,
     lichess: Arc<Lichess>,
+    bot_username: &str,
 ) -> anyhow::Result<()> {
     debug!("Received incoming event: {:?}", event);
 
     match event {
-        Event::Challenge { challenge } => handle_new_challenge(challenge, world, lichess)
-            .await
-            .with_context(|| "Failed to dispatch new challenge"),
+        Event::Challenge { challenge } => {
+            handle_new_challenge(challenge, world, lichess, &bot_username)
+                .await
+                .with_context(|| "Failed to dispatch new challenge")
+        }
 
         Event::ChallengeCanceled { challenge } => Ok(abort_task(&challenge.id, world).await),
 
@@ -321,7 +326,9 @@ async fn process_incoming_event(
 
         Event::GameFinish { game } => Ok(abort_task(&game.id, world).await),
 
-        Event::GameStart { game: game_id } => handle_new_game(game_id, world, lichess).await,
+        Event::GameStart { game: game_id } => {
+            handle_new_game(game_id, world, lichess, &bot_username).await
+        }
     }
 }
 
@@ -369,9 +376,6 @@ async fn send_stockfish_challenge(lichess: Arc<Lichess>, level: u8) -> anyhow::R
 }
 
 pub async fn start_bot() -> anyhow::Result<()> {
-    // let token = std::env::var("LICHESS_TOKEN").with_context(|| "Missing LICHESS_TOKEN")?;
-    // debug!("Using Lichess token: {}", token);
-
     let args = App::new("poirebot")
         .version("0.1.0")
         .author("Aram Peres <contact@aramperes.ca>")
@@ -416,13 +420,21 @@ pub async fn start_bot() -> anyhow::Result<()> {
         .to_string();
     let lichess = licoricedev::client::Lichess::new(token);
 
+    let bot_username = lichess
+        .get_my_profile()
+        .await
+        .map(|u| u.username)
+        .with_context(|| "Failed to get current username")?;
+
     if args.is_present("abort") {
+        info!("Resigning all live games...");
         for game in lichess
             .get_ongoing_games(50)
             .await
             .with_context(|| "Failed to get ongoing games")?
             .into_iter()
         {
+            debug!("Resigning {}...", &game.game_id);
             lichess
                 .resign_bot_game(&game.game_id)
                 .await
@@ -452,9 +464,19 @@ pub async fn start_bot() -> anyhow::Result<()> {
         .with_context(|| format!("Failed to send challenge to Stockfish"))?;
     }
 
+    info!(r"");
+    info!(r"  _/|                                     ");
+    info!(r" // o\     Hello, this is {}!             ", &bot_username);
+    info!(r" || ._)    Send me a challenge on Lichess:");
+    info!(r" //__\     https://lichess.org/@/{}       ", &bot_username);
+    info!(r" )___(                                    ");
+    info!(r"");
+
     while let Some(event) = event_stream.next().await {
         if let Ok(event) = event {
-            if let Err(e) = process_incoming_event(event, &mut world, lichess.clone()).await {
+            if let Err(e) =
+                process_incoming_event(event, &mut world, lichess.clone(), &bot_username).await
+            {
                 error!("Failed to process event: {:?}", e);
             }
         } else {
@@ -466,39 +488,14 @@ pub async fn start_bot() -> anyhow::Result<()> {
     Ok(())
 }
 
-fn is_bot_white(game_full: &GameFull) -> bool {
+fn is_bot_white(game_full: &GameFull, bot_username: &str) -> bool {
     let white = &game_full.white;
     match white {
-        Challengee::LightUser(user) => user.username == BOT_USERNAME,
+        Challengee::LightUser(user) => user.username == bot_username,
         Challengee::StockFish(_) => false,
     }
 }
 
 fn last_move(moves: &str) -> String {
     moves.split(' ').last().unwrap_or_default().to_string()
-}
-
-impl Move {
-    /// Convert a `Move` to Lichess move notation.
-    ///
-    /// Ref: https://www.chessprogramming.org/Algebraic_Chess_Notation#Pure_coordinate_notation
-    ///
-    /// For example: `Move(a1, a2, Queen)` becomes `"a1a2q"`.
-    fn to_lichess_notation(&self) -> String {
-        let Move(origin, destination, promotion) = self;
-        format!("{}{}{}", origin, destination, promotion)
-    }
-
-    /// Convert a `Move` from Lichess move notation.
-    ///
-    /// Ref: https://www.chessprogramming.org/Algebraic_Chess_Notation#Pure_coordinate_notation
-    ///
-    /// For example: `"a1a2q"` becomes `Move(a1, a2, Queen)`.
-    fn from_lichess_notation(notation: &str) -> Self {
-        let origin = notation.chars().take(2).collect::<String>();
-        let destination = notation.chars().skip(2).take(2).collect::<String>();
-        let promotion = notation.chars().skip(3).take(1).collect::<String>();
-
-        Move(origin.into(), destination.into(), promotion.into())
-    }
 }

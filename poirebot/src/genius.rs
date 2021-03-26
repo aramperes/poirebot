@@ -3,9 +3,9 @@ use std::time::Duration;
 use rand::seq::SliceRandom;
 use tokio::sync::oneshot;
 
+use crate::game::pieces::Color;
 use crate::game::position::Position;
 use crate::game::{Board, Move, Promotion};
-use crate::pieces::Color;
 
 #[derive(Debug, Clone, Copy)]
 pub struct Brain {
