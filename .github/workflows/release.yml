@@ -39,7 +39,7 @@ jobs:
 
   build-release:
     name: build-release
-    needs: ['create-release']
+    needs: [ 'create-release' ]
     runs-on: ${{ matrix.os }}
     env:
       # For some builds, we use cross to test on 32-bit and big-endian
@@ -55,7 +55,7 @@ jobs:
       PCRE2_SYS_STATIC: 1
     strategy:
       matrix:
-        build: [linux, linux-arm, macos, win-msvc]
+        build: [ linux, linux-arm, macos, win-msvc ]
         include:
           - build: linux
             os: ubuntu-18.04
@@ -102,11 +102,13 @@ jobs:
           echo "CARGO=cross" >> $GITHUB_ENV
           echo "TARGET_FLAGS=--target ${{ matrix.target }}" >> $GITHUB_ENV
           echo "TARGET_DIR=./target/${{ matrix.target }}" >> $GITHUB_ENV
+
       - name: Show command used for Cargo
         run: |
           echo "cargo command is: ${{ env.CARGO }}"
           echo "target flag is: ${{ env.TARGET_FLAGS }}"
           echo "target dir is: ${{ env.TARGET_DIR }}"
+
       - name: Get release download URL
         uses: actions/download-artifact@v1
         with:
@@ -122,8 +124,9 @@ jobs:
           release_version="$(cat artifacts/release-version)"
           echo "RELEASE_VERSION=$release_version" >> $GITHUB_ENV
           echo "release version: $RELEASE_VERSION"
-      - name: Build release binary
-        run: ${{ env.CARGO }} build --release ${{ env.TARGET_FLAGS }}
+
+      - name: Build poirebot-lichess binary
+        run: ${{ env.CARGO }} build -p poirebot-lichess --release ${{ env.TARGET_FLAGS }}
 
       - name: Prepare poirebot-lichess binary
         shell: bash
@@ -136,6 +139,7 @@ jobs:
               cp "target/${{ matrix.target }}/release/poirebot-lichess" "$name"
               echo "ASSET=$name" >> $GITHUB_ENV
           fi
+
       - name: Upload release archive
         uses: actions/upload-release-asset@v1.0.1
         env:
