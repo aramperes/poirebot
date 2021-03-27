@@ -1,15 +1,15 @@
 use std::collections::HashMap;
 use std::sync::Arc;
 
+use crate::licorice::client::Lichess;
+use crate::licorice::models::board::{BoardState, Challenge, Challengee, Event, GameFull, GameID};
+use crate::licorice::models::user::User;
 use anyhow::Context;
-use licoricedev::client::Lichess;
-use licoricedev::models::board::{BoardState, Challenge, Challengee, Event, GameFull, GameID};
-use licoricedev::models::user::User;
 use tokio::sync::mpsc::{UnboundedReceiver, UnboundedSender};
 use tokio::sync::oneshot;
 use tokio_stream::StreamExt;
 
-use licoricedev::models::game::Player;
+use crate::licorice::models::game::Player;
 use poirebot::game::pieces::Color;
 use poirebot::game::{Board, Move};
 use poirebot::genius::Brain;
@@ -53,6 +53,8 @@ pub struct Config {
     pub stockfish: u8,
     /// The maximum stockfish level to play against (if applicable).
     pub stockfish_max: u8,
+    /// Whether to only accept from users the bot account follows.
+    pub following_only: bool,
 }
 
 async fn find_and_send_move(
@@ -212,8 +214,26 @@ async fn accept_or_decline_challenge(
     lichess: Arc<Lichess>,
     config: &Config,
 ) -> anyhow::Result<bool> {
+    let challenger = challenge.challenger.as_ref().unwrap();
+
     // TODO: Determine acceptable modes/time.
-    let accept = !config.no_accept;
+    let accept = {
+        if config.no_accept {
+            false
+        } else if config.following_only
+            && !is_following(lichess.clone(), &config.username, &challenger.username)
+                .await
+                .unwrap_or(false)
+        {
+            debug!(
+                "Declining challenge by {} because they are not followed",
+                &challenger.username
+            );
+            false
+        } else {
+            true
+        }
+    };
 
     if accept {
         lichess
@@ -231,6 +251,27 @@ async fn accept_or_decline_challenge(
             .map(|_| false)
             .with_context(|| "Failed to decline challenge")
     }
+}
+
+async fn is_following(
+    lichess: Arc<Lichess>,
+    bot_username: &str,
+    username: &str,
+) -> anyhow::Result<bool> {
+    let mut stream = lichess
+        .get_followings(bot_username)
+        .await
+        .with_context(|| "Failed to get followings")?;
+    while let Some(user) = stream.next().await {
+        if let Ok(user) = user {
+            if user.username == username {
+                return Ok(true);
+            } else {
+                continue;
+            }
+        }
+    }
+    Ok(false)
 }
 
 /// Handles a new challenge by creating a new task with communication channel.

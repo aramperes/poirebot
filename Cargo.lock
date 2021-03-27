@@ -548,25 +548,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "8916b1f6ca17130ec6568feccee27c156ad12037880833a3b842a823236502e7"
 
 [[package]]
-name = "licoricedev"
-version = "0.1.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "cb3fa9004d29e4f00c80c2b516227118f6b73307cde451ce32ae0cf36ceb6ffd"
-dependencies = [
- "bytes",
- "chrono",
- "futures-util",
- "reqwest",
- "serde",
- "serde_json",
- "serde_with",
- "thiserror",
- "tokio",
- "tokio-stream",
- "tokio-util",
-]
-
-[[package]]
 name = "lock_api"
 version = "0.4.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -819,13 +800,32 @@ dependencies = [
  "clap",
  "futures",
  "futures-util",
- "licoricedev",
  "log",
  "poirebot",
+ "poirebot-licorice",
  "pretty_env_logger",
  "regex",
  "tokio",
  "tokio-stream",
+]
+
+[[package]]
+name = "poirebot-licorice"
+version = "0.1.2-fork1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "4d27b30f12d76d725fa3b577a84a898582c9f9d7f48658a8d4051bbb7fa1dee9"
+dependencies = [
+ "bytes",
+ "chrono",
+ "futures-util",
+ "reqwest",
+ "serde",
+ "serde_json",
+ "serde_with",
+ "thiserror",
+ "tokio",
+ "tokio-stream",
+ "tokio-util",
 ]
 
 [[package]]

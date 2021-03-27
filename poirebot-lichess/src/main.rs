@@ -6,7 +6,8 @@ use std::sync::Arc;
 
 use anyhow::Context;
 use clap::{App, AppSettings, Arg, ArgMatches};
-use licoricedev::client::Lichess;
+use licorice::client::Lichess;
+pub use poirebot_licorice as licorice;
 
 use crate::bot::{abort_games, send_stockfish_challenge, send_user_challenge, start_bot};
 
@@ -75,6 +76,13 @@ async fn main() -> anyhow::Result<()> {
                         .help("Always challenge for a rematch after game is over")
                         .takes_value(false)
                         .required(false),
+                )
+                .arg(
+                    Arg::with_name("following-only")
+                        .long("following-only")
+                        .help("Only allow incoming challenges from users followed by the Bot")
+                        .takes_value(false)
+                        .required(false),
                 ),
         )
         .subcommand(
@@ -140,6 +148,7 @@ async fn main() -> anyhow::Result<()> {
             rematch: args.is_present("rematch"),
             stockfish: stockfish.map_or(0, |s| s.0),
             stockfish_max: stockfish.map_or(0, |s| s.1),
+            following_only: args.is_present("following-only"),
         };
 
         // Challenge if specified
@@ -193,5 +202,5 @@ fn init_lichess(args: &ArgMatches) -> anyhow::Result<Lichess> {
         .value_of("token")
         .with_context(|| "Missing Lichess token")?
         .to_string();
-    Ok(licoricedev::client::Lichess::new(token))
+    Ok(Lichess::new(token))
 }
