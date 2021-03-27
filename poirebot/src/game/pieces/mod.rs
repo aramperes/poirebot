@@ -1,7 +1,43 @@
+pub mod pawn;
+
 use std::fmt::Debug;
 
+use crate::bitboard::BitBoard;
 use crate::game::position::Position;
 use crate::game::Move;
+
+/// The A file.
+#[allow(dead_code)]
+pub const FILE_A: BitBoard =
+    BitBoard(0b0000000100000001000000010000000100000001000000010000000100000001);
+
+/// The B file
+#[allow(dead_code)]
+pub const FILE_B: BitBoard = BitBoard(FILE_A.0 << 1);
+
+/// The C file
+#[allow(dead_code)]
+pub const FILE_C: BitBoard = BitBoard(FILE_A.0 << 2);
+
+/// The D file
+#[allow(dead_code)]
+pub const FILE_D: BitBoard = BitBoard(FILE_A.0 << 3);
+
+/// The E file
+#[allow(dead_code)]
+pub const FILE_E: BitBoard = BitBoard(FILE_A.0 << 4);
+
+/// The F file
+#[allow(dead_code)]
+pub const FILE_F: BitBoard = BitBoard(FILE_A.0 << 5);
+
+/// The G file
+#[allow(dead_code)]
+pub const FILE_G: BitBoard = BitBoard(FILE_A.0 << 6);
+
+/// The H file
+#[allow(dead_code)]
+pub const FILE_H: BitBoard = BitBoard(FILE_A.0 << 7);
 
 /// A chess piece.
 #[derive(Debug, Clone, Copy, Eq, PartialEq)]

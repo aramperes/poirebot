@@ -1,7 +1,10 @@
 use std::fmt::{Display, Formatter};
 
-use crate::bitboard::{BitBoard, EMPTY, FILE_A, FILE_H};
-use crate::game::pieces::{get_castling_rook_move, is_pawn_two_step, Color, Pieces};
+use crate::bitboard::{BitBoard, EMPTY};
+use crate::game::pieces::pawn::get_pawn_diagonal_attack_squares;
+use crate::game::pieces::{
+    get_castling_rook_move, is_pawn_two_step, Color, Pieces, FILE_A, FILE_H,
+};
 use crate::game::position::Position;
 
 pub mod fen;
@@ -392,22 +395,17 @@ impl Board {
     /// Returns a bitboard with the opponent squares being attacked by one's side pawns.
     /// Note: this doesn't mean the move is legal; it could cause a self-check for example.
     pub fn get_squares_attacked_by_pawns(&self, color: Color) -> BitBoard {
-        let mut pawns = self.get_side(color).pawns.clone();
-        let mut own_squares = self.get_side(color).pieces.clone();
-        let mut opponent_squares = self.get_side(color.opposite()).pieces.clone();
+        let mut pawns = self.get_side(color).pawns;
+        let mut opponent_squares = self.get_side(color.opposite()).pieces;
 
         // Normalize by flipping
         if color == Color::Black {
             pawns = pawns.reverse_colors();
-            own_squares = own_squares.reverse_colors();
             opponent_squares = opponent_squares.reverse_colors();
         };
 
-        let left_side_attacks = BitBoard((pawns & !FILE_A).0 << 7);
-        let right_side_attacks = BitBoard((pawns & !FILE_H).0 << 9);
-
-        let mut attacking =
-            ((left_side_attacks | right_side_attacks) & opponent_squares) & !own_squares;
+        let diagonal_attacks = get_pawn_diagonal_attack_squares(pawns);
+        let mut attacking = diagonal_attacks & opponent_squares;
 
         // Flip back if normalized
         if color == Color::Black {

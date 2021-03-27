@@ -1,6 +1,8 @@
-use crate::game::position::Position;
 use std::fmt;
 use std::ops::{BitAnd, BitAndAssign, BitOr, BitOrAssign, BitXor, BitXorAssign, Mul, Not};
+
+use crate::game::position::Position;
+use std::iter::FromIterator;
 
 #[derive(PartialEq, Eq, PartialOrd, Clone, Copy, Debug, Default, Hash)]
 pub struct BitBoard(pub u64);
@@ -8,16 +10,6 @@ pub struct BitBoard(pub u64);
 /// The Zero board state.
 #[allow(dead_code)]
 pub const EMPTY: BitBoard = BitBoard(0);
-
-/// The leftmost file, from white's perspective.
-#[allow(dead_code)]
-pub const FILE_A: BitBoard =
-    BitBoard(0b0000000100000001000000010000000100000001000000010000000100000001);
-
-/// The rightmost file, from white's perspective.
-#[allow(dead_code)]
-pub const FILE_H: BitBoard =
-    BitBoard(0b1000000010000000100000001000000010000000100000001000000010000000);
 
 impl BitAnd for BitBoard {
     type Output = BitBoard;
@@ -288,6 +280,16 @@ impl BitBoard {
 impl From<Position> for BitBoard {
     fn from(pos: Position) -> Self {
         Self::from_position(pos)
+    }
+}
+
+impl FromIterator<Position> for BitBoard {
+    fn from_iter<T: IntoIterator<Item = Position>>(iter: T) -> Self {
+        let mut board = EMPTY;
+        for pos in iter {
+            board |= BitBoard::from(pos);
+        }
+        board
     }
 }
 
