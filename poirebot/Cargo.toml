@@ -1,6 +1,6 @@
 [package]
 name = "poirebot"
-version = "0.1.2"
+version = "0.1.3"
 authors = ["Aram Peres <aram.peres@wavy.fm>"]
 edition = "2018"
 description = "A chess bot engine written in Rust"

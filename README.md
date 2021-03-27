@@ -83,7 +83,7 @@ poirebot depends on Rust stable **1.50+**, or nightly, as it uses the `<number>:
 * anyhow: for error handling
 * tokio, tokio-stream: async runtime
 * rayon: parallelism library for expensive board operations on the CPU
-* licoricedev: Lichess.org API client
+* licorice: Lichess.org API client ([forked](https://gitlab.com/momothereal/licorice/-/tree/poirebot-patches))
 * clap: CLI parsing
 * rand: PRNG
 
