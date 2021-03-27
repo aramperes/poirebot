@@ -5,7 +5,7 @@ use std::io::{stdin, Write};
 use std::sync::Arc;
 
 use anyhow::Context;
-use clap::{App, Arg, ArgMatches};
+use clap::{App, AppSettings, Arg, ArgMatches};
 use licoricedev::client::Lichess;
 
 use crate::bot::{abort_games, send_stockfish_challenge, send_user_challenge, start_bot};
@@ -82,6 +82,7 @@ async fn main() -> anyhow::Result<()> {
                         .takes_value(false),
                 ),
         )
+        .setting(AppSettings::SubcommandRequiredElseHelp)
         .get_matches();
 
     init_logger(args.is_present("debug"));
