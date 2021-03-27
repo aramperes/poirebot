@@ -21,6 +21,7 @@ futures-util = "0.3.13"
 futures = "0.3.13"
 tokio-stream = "0.1.5"
 clap = "2.33"
+regex = "1.4.5"
 
 [dependencies.poirebot]
 path = "../poirebot"

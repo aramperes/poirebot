@@ -68,6 +68,13 @@ async fn main() -> anyhow::Result<()> {
                         .help("Disables all incoming challenges")
                         .takes_value(false)
                         .required(false),
+                )
+                .arg(
+                    Arg::with_name("rematch")
+                        .long("rematch")
+                        .help("Always challenge for a rematch after game is over")
+                        .takes_value(false)
+                        .required(false),
                 ),
         )
         .subcommand(
@@ -103,24 +110,48 @@ async fn main() -> anyhow::Result<()> {
                 .with_context(|| "Failed to resign ongoing games")?;
         }
 
+        let stockfish: Option<(u8, u8)> = if let Some(stockfish_arg) = args.value_of("stockfish") {
+            let pattern = regex::Regex::new(r"(\d+)(?:-(\d+))?").unwrap();
+            let matches = pattern
+                .captures(stockfish_arg)
+                .with_context(|| "Failed to parse stockfish arg")?;
+
+            let stockfish_min = matches
+                .get(1)
+                .with_context(|| {
+                    "Invalid stockfish arg, use --stockfish=1 or -stockfish=1-8 for example"
+                })?
+                .as_str();
+            let stockfish_min = stockfish_min
+                .parse()
+                .with_context(|| "Invalid stockfish level")?;
+            let stockfish_max = matches
+                .get(2)
+                .map_or(Ok(stockfish_min), |m| m.as_str().parse())
+                .with_context(|| "Invalid max stockfish level")?;
+            Some((stockfish_min, stockfish_max))
+        } else {
+            None
+        };
+
+        let config = bot::Config {
+            no_accept: args.is_present("no-accept"),
+            username: lichess_user.username.clone(),
+            rematch: args.is_present("rematch"),
+            stockfish: stockfish.map_or(0, |s| s.0),
+            stockfish_max: stockfish.map_or(0, |s| s.1),
+        };
+
         // Challenge if specified
         if let Some(challenge_username) = args.value_of("challenge") {
             send_user_challenge(lichess.clone(), challenge_username.into())
                 .await
                 .with_context(|| format!("Failed to send challenge to {}", challenge_username))?;
-        } else if let Some(stockfish_level) = args.value_of("stockfish") {
-            send_stockfish_challenge(
-                lichess.clone(),
-                stockfish_level.parse().expect("invalid stockfish level"),
-            )
-            .await
-            .with_context(|| format!("Failed to send challenge to Stockfish"))?;
+        } else if let Some((stockfish, _)) = stockfish {
+            send_stockfish_challenge(lichess.clone(), stockfish)
+                .await
+                .with_context(|| format!("Failed to send challenge to Stockfish"))?;
         }
-
-        let config = bot::Config {
-            no_accept: args.is_present("no-accept"),
-            username: lichess_user.username.clone(),
-        };
 
         start_bot(lichess, config).await
     } else if let Some(ref args) = args.subcommand_matches("upgrade-account") {

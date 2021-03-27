@@ -9,6 +9,7 @@ use tokio::sync::mpsc::{UnboundedReceiver, UnboundedSender};
 use tokio::sync::oneshot;
 use tokio_stream::StreamExt;
 
+use licoricedev::models::game::Player;
 use poirebot::game::pieces::Color;
 use poirebot::game::{Board, Move};
 use poirebot::genius::Brain;
@@ -46,6 +47,12 @@ pub struct Config {
     pub username: String,
     /// If true, does not accept any incoming challenge.
     pub no_accept: bool,
+    /// Whether to send rematch after each game.
+    pub rematch: bool,
+    /// The Stockfish level to play against (if applicable).
+    pub stockfish: u8,
+    /// The maximum stockfish level to play against (if applicable).
+    pub stockfish_max: u8,
 }
 
 async fn find_and_send_move(
@@ -416,7 +423,15 @@ async fn process_incoming_event(
 
         Event::ChallengeDeclined { challenge } => Ok(abort_task(&challenge.id, world).await),
 
-        Event::GameFinish { game } => Ok(abort_task(&game.id, world).await),
+        Event::GameFinish { game } => {
+            abort_task(&game.id, world).await;
+            if config.rematch {
+                send_rematch(&config, lichess.clone(), &game.id)
+                    .await
+                    .with_context(|| "Failed to send rematch")?;
+            }
+            Ok(())
+        }
 
         Event::GameStart { game: game_id } => {
             handle_new_game(game_id, world, lichess, config).await
@@ -473,6 +488,40 @@ pub async fn send_stockfish_challenge(lichess: Arc<Lichess>, level: u8) -> anyho
                 level, challenge.id
             );
         })
+}
+
+pub async fn send_rematch(
+    config: &Config,
+    lichess: Arc<Lichess>,
+    game_id: &str,
+) -> anyhow::Result<()> {
+    let game = lichess
+        .export_one_game_json(&game_id, None)
+        .await
+        .with_context(|| "Failed to fetch game")?;
+    // Determine opponent
+    let opponent = match &game.players.white {
+        Player::Entity(e) => {
+            if e.user.as_ref().unwrap().username == config.username {
+                game.players.black
+            } else {
+                game.players.white
+            }
+        }
+        Player::StockFish(_) => game.players.white,
+    };
+    match opponent {
+        Player::Entity(human) => {
+            send_user_challenge(lichess.clone(), human.user.unwrap().username).await
+        }
+        Player::StockFish(stockfish) => {
+            send_stockfish_challenge(
+                lichess.clone(),
+                (stockfish.ai_level + 1).clamp(stockfish.ai_level, config.stockfish_max),
+            )
+            .await
+        }
+    }
 }
 
 pub async fn abort_games(lichess: Arc<Lichess>) -> anyhow::Result<()> {

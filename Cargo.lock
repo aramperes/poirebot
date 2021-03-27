@@ -823,6 +823,7 @@ dependencies = [
  "log",
  "poirebot",
  "pretty_env_logger",
+ "regex",
  "tokio",
  "tokio-stream",
 ]
