@@ -175,3 +175,62 @@ pub fn get_pawn_right_attacks(board: Board, color: Color) -> Vec<(Move, u8)> {
         })
         .collect()
 }
+
+#[cfg(test)]
+mod tests {
+    use crate::game::pieces::Color;
+    use crate::game::{Board, Move};
+
+    #[test]
+    fn test_pawn_double_step_white() {
+        let board = Board::default();
+        let double_steps = super::get_pawn_double_steps(board, Color::White);
+        assert_eq!(
+            double_steps,
+            vec![
+                ("a2", "a4").into(),
+                ("b2", "b4").into(),
+                ("c2", "c4").into(),
+                ("d2", "d4").into(),
+                ("e2", "e4").into(),
+                ("f2", "f4").into(),
+                ("g2", "g4").into(),
+                ("h2", "h4").into(),
+            ]
+        );
+    }
+
+    #[test]
+    fn test_pawn_double_step_black() {
+        let board = Board::default();
+        let double_steps = super::get_pawn_double_steps(board, Color::Black);
+        assert_eq!(
+            double_steps,
+            vec![
+                ("a7", "a5").into(),
+                ("b7", "b5").into(),
+                ("c7", "c5").into(),
+                ("d7", "d5").into(),
+                ("e7", "e5").into(),
+                ("f7", "f5").into(),
+                ("g7", "g5").into(),
+                ("h7", "h5").into(),
+            ]
+            .into_iter()
+            .rev()
+            .collect::<Vec<Move>>()
+        );
+    }
+
+    #[test]
+    fn test_pawn_double_step_obstructed() {
+        let board =
+            Board::from_fen("rn2kbnr/pp2pppp/2p5/8/1b3P2/3qP1Pp/PPPP3P/RNBQKBNR w KQkq - 0 1")
+                .unwrap();
+        let double_steps = super::get_pawn_double_steps(board, Color::White);
+        assert_eq!(
+            double_steps,
+            vec![("a2", "a4").into(), ("c2", "c4").into(),]
+        );
+    }
+}
