@@ -117,10 +117,6 @@ async fn message_loop(
             Message::NewGame => {
                 let id = game_id.id.clone();
                 info!("Game starting: {}", &id);
-                lichess
-                    .write_in_bot_chat(&id, "player", "Welcome to the poire zone")
-                    .await
-                    .unwrap_or_else(|_| ());
             }
             Message::Abort => {
                 info!("Game/Challenge aborted: {}", game_id.id);
@@ -128,6 +124,16 @@ async fn message_loop(
             }
             Message::BoardChat(username, message) => {
                 info!("({})\t\t{}\t\t{}", game_id.id, username, message);
+                if message == ".version" {
+                    lichess
+                        .write_in_bot_chat(
+                            &game_id.id,
+                            "player",
+                            format!("Poirebot version: {}", clap::crate_version!()).as_str(),
+                        )
+                        .await
+                        .unwrap_or(());
+                }
             }
             Message::Move(m, color, game_over) => {
                 let bot_move = color == brain.color;
@@ -154,10 +160,7 @@ async fn message_loop(
                         find_and_send_move(lichess.clone(), &game_id.id, &mut brain).await
                     {
                         error!("{:?}", e);
-                        lichess
-                            .resign_bot_game(&game_id.id)
-                            .await
-                            .unwrap_or_else(|_| ());
+                        lichess.resign_bot_game(&game_id.id).await.unwrap_or(());
                         break;
                     }
                 }
@@ -191,10 +194,7 @@ async fn message_loop(
                         find_and_send_move(lichess.clone(), &game_id.id, &mut brain).await
                     {
                         error!("{:?}", e);
-                        lichess
-                            .resign_bot_game(&game_id.id)
-                            .await
-                            .unwrap_or_else(|_| ());
+                        lichess.resign_bot_game(&game_id.id).await.unwrap_or(());
                         break;
                     }
                 }
@@ -292,9 +292,7 @@ async fn handle_new_challenge(
     let (sender, mut recv) = tokio::sync::mpsc::unbounded_channel::<Message>();
     world.games.insert(game_id.clone(), sender.clone());
 
-    let game_id = GameID {
-        id: game_id.clone(),
-    };
+    let game_id = GameID { id: game_id };
     let config = config.clone();
     tokio::spawn(async move { message_loop(game_id, &mut recv, lichess.clone(), &config).await });
 
@@ -370,7 +368,7 @@ async fn dispatch_board_event(
             if username != config.username {
                 sender
                     .send(Message::BoardChat(username, chat_line.text))
-                    .unwrap_or_else(|_| ());
+                    .unwrap_or(());
             }
         }
         BoardState::GameFull(state) => {
@@ -389,7 +387,7 @@ async fn dispatch_board_event(
 
                 sender
                     .send(Message::SetBoard(initial_fen, moves, color))
-                    .unwrap_or_else(|_| ());
+                    .unwrap_or(());
             } else {
                 warn!("Unhandled board status: {}", state.state.status);
             }
@@ -397,13 +395,9 @@ async fn dispatch_board_event(
         BoardState::GameState(state) => {
             if state.status == "started" {
                 if state.bdraw {
-                    sender
-                        .send(Message::DrawOffer(Color::Black))
-                        .unwrap_or_else(|_| ());
+                    sender.send(Message::DrawOffer(Color::Black)).unwrap_or(());
                 } else if state.wdraw {
-                    sender
-                        .send(Message::DrawOffer(Color::White))
-                        .unwrap_or_else(|_| ());
+                    sender.send(Message::DrawOffer(Color::White)).unwrap_or(());
                 }
 
                 let moves = state
@@ -426,7 +420,7 @@ async fn dispatch_board_event(
 
                 sender
                     .send(Message::Move(last_move, last_move_color, game_over))
-                    .unwrap_or_else(|_| ());
+                    .unwrap_or(());
             } else {
                 warn!("Unhandled board status: {}", state.status);
             }
@@ -437,7 +431,7 @@ async fn dispatch_board_event(
 /// Dispatches the 'Abort' message to the game, closing it.
 async fn abort_task(game_id: &str, world: &mut World) {
     if let Some(sender) = world.games.get(game_id) {
-        sender.send(Message::Abort).unwrap_or_else(|_| ());
+        sender.send(Message::Abort).unwrap_or(());
         world.games.remove(game_id);
     } else {
         warn!(
@@ -460,9 +454,15 @@ async fn process_incoming_event(
             .await
             .with_context(|| "Failed to dispatch new challenge"),
 
-        Event::ChallengeCanceled { challenge } => Ok(abort_task(&challenge.id, world).await),
+        Event::ChallengeCanceled { challenge } => {
+            abort_task(&challenge.id, world).await;
+            Ok(())
+        }
 
-        Event::ChallengeDeclined { challenge } => Ok(abort_task(&challenge.id, world).await),
+        Event::ChallengeDeclined { challenge } => {
+            abort_task(&challenge.id, world).await;
+            Ok(())
+        }
 
         Event::GameFinish { game } => {
             abort_task(&game.id, world).await;

@@ -159,7 +159,7 @@ async fn main() -> anyhow::Result<()> {
         } else if let Some((stockfish, _)) = stockfish {
             send_stockfish_challenge(lichess.clone(), stockfish)
                 .await
-                .with_context(|| format!("Failed to send challenge to Stockfish"))?;
+                .with_context(|| "Failed to send challenge to Stockfish")?;
         }
 
         start_bot(lichess, config).await
@@ -187,7 +187,7 @@ async fn main() -> anyhow::Result<()> {
 }
 
 fn init_logger(debug: bool) {
-    if let Err(_) = std::env::var("POIREBOT_LOG") {
+    if std::env::var("POIREBOT_LOG").is_err() {
         std::env::set_var("POIREBOT_LOG", "info");
     }
     if debug {

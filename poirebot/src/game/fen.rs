@@ -57,7 +57,7 @@ impl Board {
         }
 
         // TODO
-        let active_color = if fen_split.next().with_context(|| "no active color")? == "w" {
+        let _active_color = if fen_split.next().with_context(|| "no active color")? == "w" {
             Color::White
         } else {
             Color::Black
@@ -93,10 +93,10 @@ impl Board {
         };
 
         // TODO
-        let half_move_clock = fen_split.next().with_context(|| "no half-move clock")?;
+        let _half_move_clock = fen_split.next().with_context(|| "no half-move clock")?;
 
         // TODO
-        let full_move_clock = fen_split.next().with_context(|| "no full-move clock")?;
+        let _full_move_clock = fen_split.next().with_context(|| "no full-move clock")?;
 
         // Construct board
         let white = BoardSide::new(Color::White, |side| {

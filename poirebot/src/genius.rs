@@ -59,7 +59,7 @@ impl Brain {
             {
                 // HACK: to find which pawn to use to attack, we re-use the same function
                 // but we make all enemy pieces pawns and see what THEY can attack
-                let mut board_swap = board.clone();
+                let mut board_swap = board;
                 board_swap.mutate(|board| {
                     let side = board.get_side_mut(color.opposite());
                     side.mutate(|side| {

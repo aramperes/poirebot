@@ -2,9 +2,7 @@ use std::fmt::{Display, Formatter};
 
 use crate::bitboard::{BitBoard, EMPTY};
 use crate::game::pieces::pawn::get_pawn_diagonal_attack_squares;
-use crate::game::pieces::{
-    get_castling_rook_move, is_pawn_two_step, Color, Pieces, FILE_A, FILE_H,
-};
+use crate::game::pieces::{get_castling_rook_move, is_pawn_two_step, Color, Pieces};
 use crate::game::position::Position;
 
 pub mod fen;
@@ -377,7 +375,7 @@ impl Board {
     pub fn get_piece(&self, position: Position) -> Option<Pieces> {
         self.white
             .get_piece(position)
-            .or(self.black.get_piece(position))
+            .or_else(|| self.black.get_piece(position))
     }
 
     /// Returns a bitboard for all the pieces in the board.
