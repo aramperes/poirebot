@@ -283,6 +283,12 @@ impl BitBoard {
         BitBoard(x)
     }
 
+    /// Mirror this `Bitboard` horizontally (left becomes right) and flip the colors.
+    #[inline]
+    pub fn rotate(&self) -> BitBoard {
+        self.reverse_colors().mirror_horizontally()
+    }
+
     /// Convert this `BitBoard` to a `usize` (for table lookups)
     #[inline]
     pub fn to_size(&self, rightshift: u8) -> usize {

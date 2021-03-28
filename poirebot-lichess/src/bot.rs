@@ -13,6 +13,7 @@ use crate::licorice::models::game::Player;
 use poirebot::game::pieces::Color;
 use poirebot::game::{Board, Move};
 use poirebot::genius::Brain;
+use std::time::SystemTime;
 
 /// The world containing all games.
 #[derive(Default)]
@@ -63,12 +64,24 @@ async fn find_and_send_move(
     brain: &mut Brain,
 ) -> anyhow::Result<()> {
     let (sensor, recv) = oneshot::channel::<Option<Move>>();
+    let current_time = SystemTime::now();
     brain.choose_move(sensor);
 
     let m = recv
         .await
         .with_context(|| "communication failure")?
         .with_context(|| "ran out of moves")?;
+
+    let duration = current_time.elapsed().unwrap();
+    lichess
+        .write_in_bot_chat(
+            game_id,
+            "player",
+            format!("Move generation took {} microseconds", duration.as_micros()).as_str(),
+        )
+        .await
+        .unwrap_or(());
+
     lichess
         .make_a_bot_move(game_id, m.to_pure_notation().as_str(), false)
         .await
