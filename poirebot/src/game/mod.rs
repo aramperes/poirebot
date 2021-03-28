@@ -1,7 +1,6 @@
-use std::fmt::{Display, Formatter};
+use std::fmt::{Debug, Display, Formatter};
 
 use crate::bitboard::{BitBoard, EMPTY};
-use crate::game::pieces::pawn::get_pawn_diagonal_attack_squares;
 use crate::game::pieces::{get_castling_rook_move, is_pawn_two_step, Color, Pieces};
 use crate::game::position::Position;
 
@@ -10,7 +9,7 @@ pub mod pieces;
 pub mod position;
 
 /// A chess piece move (origin and destination).
-#[derive(Debug, Clone, Copy, Eq, PartialEq)]
+#[derive(Clone, Copy, Eq, PartialEq)]
 pub struct Move(pub Position, pub Position, pub Promotion);
 
 impl From<(&str, &str)> for Move {
@@ -28,6 +27,12 @@ impl From<(&str, &str, Promotion)> for Move {
 impl From<(Position, Position)> for Move {
     fn from(m: (Position, Position)) -> Self {
         Move(m.0, m.1, Promotion::None)
+    }
+}
+
+impl Debug for Move {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self.to_pure_notation())
     }
 }
 
@@ -53,6 +58,11 @@ impl Move {
         let promotion = notation.chars().skip(3).take(1).collect::<String>();
 
         Move(origin.into(), destination.into(), promotion.into())
+    }
+
+    /// Returns a new `Move` with the given `Promotion`.
+    pub fn with_promotion(&self, promotion: Promotion) -> Self {
+        Move(self.0, self.1, promotion)
     }
 }
 
@@ -378,6 +388,19 @@ impl Board {
             .or_else(|| self.black.get_piece(position))
     }
 
+    /// Get the piece at the given position if any.
+    pub fn get_piece_value(&self, position: Position) -> u8 {
+        match self.get_piece(position) {
+            Some(Pieces::Pawn(_, _)) => 1,
+            Some(Pieces::Bishop(_, _)) => 3,
+            Some(Pieces::Knight(_, _)) => 3,
+            Some(Pieces::Rook(_, _)) => 5,
+            Some(Pieces::Queen(_, _)) => 8,
+            Some(Pieces::King(_, _)) => 100,
+            None => 0,
+        }
+    }
+
     /// Returns a bitboard for all the pieces in the board.
     pub fn get_bitboard(&self) -> BitBoard {
         self.white.pieces | self.black.pieces
@@ -388,29 +411,6 @@ impl Board {
         f(self);
         self.white.refresh();
         self.black.refresh();
-    }
-
-    /// Returns a bitboard with the opponent squares being attacked by one's side pawns.
-    /// Note: this doesn't mean the move is legal; it could cause a self-check for example.
-    pub fn get_squares_attacked_by_pawns(&self, color: Color) -> BitBoard {
-        let mut pawns = self.get_side(color).pawns;
-        let mut opponent_squares = self.get_side(color.opposite()).pieces;
-
-        // Normalize by flipping
-        if color == Color::Black {
-            pawns = pawns.reverse_colors();
-            opponent_squares = opponent_squares.reverse_colors();
-        };
-
-        let diagonal_attacks = get_pawn_diagonal_attack_squares(pawns);
-        let mut attacking = diagonal_attacks & opponent_squares;
-
-        // Flip back if normalized
-        if color == Color::Black {
-            attacking = attacking.reverse_colors();
-        };
-
-        attacking
     }
 
     pub fn get_side(&self, color: Color) -> BoardSide {
@@ -684,6 +684,56 @@ mod tests {
                 .map(|p| format!("{}", p))
                 .collect::<Vec<String>>(),
             vec!["b5", "c5", "e5", "g5"]
+        );
+    }
+
+    #[test]
+    fn test_pawn_double_step_white() {
+        let board = Board::default();
+        let double_steps = board.get_pawn_double_steps(Color::White);
+        assert_eq!(
+            double_steps,
+            vec![
+                ("a2", "a4").into(),
+                ("b2", "b4").into(),
+                ("c2", "c4").into(),
+                ("d2", "d4").into(),
+                ("e2", "e4").into(),
+                ("f2", "f4").into(),
+                ("g2", "g4").into(),
+                ("h2", "h4").into(),
+            ]
+        );
+    }
+
+    #[test]
+    fn test_pawn_double_step_black() {
+        let board = Board::default();
+        let double_steps = board.get_pawn_double_steps(Color::Black);
+        assert_eq!(
+            double_steps,
+            vec![
+                ("a7", "a5").into(),
+                ("b7", "b5").into(),
+                ("c7", "c5").into(),
+                ("d7", "d5").into(),
+                ("e7", "e5").into(),
+                ("f7", "f5").into(),
+                ("g7", "g5").into(),
+                ("h7", "h5").into(),
+            ]
+        );
+    }
+
+    #[test]
+    fn test_pawn_double_step_obstructed() {
+        let board =
+            Board::from_fen("rn2kbnr/pp2pppp/2p5/8/1b3P2/3qP1Pp/PPPP3P/RNBQKBNR w KQkq - 0 1")
+                .unwrap();
+        let double_steps = board.get_pawn_double_steps(Color::White);
+        assert_eq!(
+            double_steps,
+            vec![("a2", "a4").into(), ("c2", "c4").into(),]
         );
     }
 }

@@ -270,10 +270,32 @@ impl BitBoard {
         BitBoard(self.0.swap_bytes())
     }
 
+    /// Mirror this `Bitboard` horizontally (left becomes right).
+    #[inline]
+    pub fn mirror_horizontally(&self) -> BitBoard {
+        let mut x = self.0;
+        let k1: u64 = 0x5555555555555555;
+        let k2: u64 = 0x3333333333333333;
+        let k4: u64 = 0x0f0f0f0f0f0f0f0f;
+        x = ((x >> 1) & k1) | ((x & k1) << 1);
+        x = ((x >> 2) & k2) | ((x & k2) << 2);
+        x = ((x >> 4) & k4) | ((x & k4) << 4);
+        BitBoard(x)
+    }
+
     /// Convert this `BitBoard` to a `usize` (for table lookups)
     #[inline]
     pub fn to_size(&self, rightshift: u8) -> usize {
         (self.0 >> rightshift) as usize
+    }
+
+    /// Split the current bitboard to a
+    pub fn split(self) -> Vec<BitBoard> {
+        let mut vec: Vec<BitBoard> = Vec::with_capacity(self.popcnt() as usize);
+        for pos in self {
+            vec.push(BitBoard::from(pos));
+        }
+        vec
     }
 }
 

@@ -39,6 +39,22 @@ pub const FILE_G: BitBoard = BitBoard(FILE_A.0 << 6);
 #[allow(dead_code)]
 pub const FILE_H: BitBoard = BitBoard(FILE_A.0 << 7);
 
+/// The 1st rank
+#[allow(dead_code)]
+pub const RANK_1: BitBoard = BitBoard(0b11111111);
+
+/// The 2nd rank
+#[allow(dead_code)]
+pub const RANK_2: BitBoard = BitBoard(RANK_1.0 << 8);
+
+/// The 3rd rank
+#[allow(dead_code)]
+pub const RANK_3: BitBoard = BitBoard(RANK_2.0 << 8);
+
+/// The 4th rank
+#[allow(dead_code)]
+pub const RANK_4: BitBoard = BitBoard(RANK_3.0 << 8);
+
 /// A chess piece.
 #[derive(Debug, Clone, Copy, Eq, PartialEq)]
 pub enum Pieces {
