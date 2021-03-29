@@ -104,6 +104,7 @@ fn list_potential_moves(board: Board, color: Color) -> BTreeSet<BrainMove> {
         "pawn:single_step",
         "pawn:attack_left",
         "pawn:attack_right",
+        "rook:slide_north",
     ]
     .iter()
     .map(|task| match *task {
@@ -137,6 +138,14 @@ fn list_potential_moves(board: Board, color: Color) -> BTreeSet<BrainMove> {
                 let base_reward = f32::from(value);
                 let base_risk = 0.0;
                 (m.with_promotion(promote(m.1)), base_reward, base_risk)
+            })
+            .collect(),
+        "rook:slide_north" => pieces::rook::get_rook_north_moves(board, color)
+            .into_iter()
+            .map(|(m, value)| {
+                let base_reward = f32::from(value);
+                let base_risk = 0.5;
+                (m, base_reward, base_risk)
             })
             .collect(),
         _ => Vec::with_capacity(0),

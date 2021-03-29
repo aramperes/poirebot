@@ -1,4 +1,5 @@
 pub mod pawn;
+pub mod rook;
 
 use std::fmt::Debug;
 
@@ -39,6 +40,12 @@ pub const FILE_G: BitBoard = BitBoard(FILE_A.0 << 6);
 #[allow(dead_code)]
 pub const FILE_H: BitBoard = BitBoard(FILE_A.0 << 7);
 
+/// All the files.
+#[allow(dead_code)]
+pub const FILES: [BitBoard; 8] = [
+    FILE_A, FILE_B, FILE_C, FILE_D, FILE_E, FILE_F, FILE_G, FILE_H,
+];
+
 /// The 1st rank
 #[allow(dead_code)]
 pub const RANK_1: BitBoard = BitBoard(0b11111111);
@@ -54,6 +61,28 @@ pub const RANK_3: BitBoard = BitBoard(RANK_2.0 << 8);
 /// The 4th rank
 #[allow(dead_code)]
 pub const RANK_4: BitBoard = BitBoard(RANK_3.0 << 8);
+
+/// The 4th rank
+#[allow(dead_code)]
+pub const RANK_5: BitBoard = BitBoard(RANK_4.0 << 8);
+
+/// The 4th rank
+#[allow(dead_code)]
+pub const RANK_6: BitBoard = BitBoard(RANK_5.0 << 8);
+
+/// The 4th rank
+#[allow(dead_code)]
+pub const RANK_7: BitBoard = BitBoard(RANK_6.0 << 8);
+
+/// The 4th rank
+#[allow(dead_code)]
+pub const RANK_8: BitBoard = BitBoard(RANK_7.0 << 8);
+
+/// All the ranks.
+#[allow(dead_code)]
+pub const RANKS: [BitBoard; 8] = [
+    RANK_1, RANK_2, RANK_3, RANK_4, RANK_5, RANK_6, RANK_7, RANK_8,
+];
 
 /// A chess piece.
 #[derive(Debug, Clone, Copy, Eq, PartialEq)]
