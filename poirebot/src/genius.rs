@@ -4,7 +4,6 @@ use crate::game::pieces;
 use crate::game::pieces::Color;
 use crate::game::position::Position;
 use crate::game::{Board, Move, Promotion};
-use rayon::prelude::*;
 use std::cmp::Ordering;
 use std::collections::BTreeSet;
 
@@ -143,7 +142,7 @@ fn list_potential_moves(board: Board, color: Color) -> BTreeSet<BrainMove> {
         "pawn:attack_left",
         "pawn:attack_right",
     ]
-    .par_iter()
+    .iter()
     .map(|task| match *task {
         "pawn:double_step" => pieces::pawn::get_pawn_double_steps(board, color)
             .into_iter()
@@ -202,15 +201,9 @@ fn list_potential_moves(board: Board, color: Color) -> BTreeSet<BrainMove> {
             }
         })
     })
-    .fold(BTreeSet::new, |mut sum, val| {
+    .fold(BTreeSet::new(), |mut sum, val| {
         sum.extend(val);
         sum
-    })
-    .reduce(BTreeSet::new, |s1, s2| {
-        s2.iter().fold(s1, |mut acc, m| {
-            acc.insert(*m);
-            acc
-        })
     })
 }
 
