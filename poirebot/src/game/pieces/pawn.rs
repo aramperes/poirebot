@@ -9,8 +9,8 @@ pub fn get_pawn_double_steps(board: Board, color: Color) -> Vec<Move> {
 
     // Normalize by flipping
     if color == Color::Black {
-        own_pawns = own_pawns.mirror_horizontally().reverse_colors();
-        all_pieces = all_pieces.mirror_horizontally().reverse_colors();
+        own_pawns = own_pawns.rotate();
+        all_pieces = all_pieces.rotate();
     }
 
     // Pawns on rank 2 that are unobstructed to rank 4
@@ -24,24 +24,18 @@ pub fn get_pawn_double_steps(board: Board, color: Color) -> Vec<Move> {
         .split()
         .into_iter()
         .map(|pawn| {
-            let destination = BitBoard(pawn.0 << 16); // Add 2 ranks
+            let mut pawn = pawn;
+            let mut destination = BitBoard(pawn.0 << 16); // Add 2 ranks
             if color == Color::Black {
-                // De-normalize by reversing colors
-                Move(
-                    pawn.reverse_colors().mirror_horizontally().to_position(),
-                    destination
-                        .reverse_colors()
-                        .mirror_horizontally()
-                        .to_position(),
-                    Promotion::None,
-                )
-            } else {
-                Move(
-                    pawn.to_position(),
-                    destination.to_position(),
-                    Promotion::None,
-                )
+                // De-normalize
+                pawn = pawn.rotate();
+                destination = destination.rotate();
             }
+            Move(
+                pawn.to_position(),
+                destination.to_position(),
+                Promotion::None,
+            )
         })
         .collect()
 }
@@ -53,8 +47,8 @@ pub fn get_pawn_single_steps(board: Board, color: Color) -> Vec<Move> {
 
     // Normalize by flipping
     if color == Color::Black {
-        own_pawns = own_pawns.reverse_colors().mirror_horizontally();
-        all_pieces = all_pieces.reverse_colors().mirror_horizontally();
+        own_pawns = own_pawns.rotate();
+        all_pieces = all_pieces.rotate();
     }
 
     // Pawn single-step destinations with no obstruction
@@ -65,24 +59,18 @@ pub fn get_pawn_single_steps(board: Board, color: Color) -> Vec<Move> {
         .split()
         .into_iter()
         .map(|destination| {
-            let pawn = BitBoard(destination.0 >> 8); // Remove 1 rank
+            let mut pawn = BitBoard(destination.0 >> 8); // Remove 1 rank
+            let mut destination = destination;
             if color == Color::Black {
-                // De-normalize by reversing colors
-                Move(
-                    pawn.reverse_colors().mirror_horizontally().to_position(),
-                    destination
-                        .reverse_colors()
-                        .mirror_horizontally()
-                        .to_position(),
-                    Promotion::None,
-                )
-            } else {
-                Move(
-                    pawn.to_position(),
-                    destination.to_position(),
-                    Promotion::None,
-                )
+                // De-normalize
+                pawn = pawn.rotate();
+                destination = destination.rotate();
             }
+            Move(
+                pawn.to_position(),
+                destination.to_position(),
+                Promotion::None,
+            )
         })
         .collect()
 }
@@ -95,8 +83,8 @@ pub fn get_pawn_left_attacks(board: Board, color: Color) -> Vec<(Move, u8)> {
 
     // Normalize by flipping
     if color == Color::Black {
-        own_pawns = own_pawns.reverse_colors().mirror_horizontally();
-        other_pieces = other_pieces.reverse_colors().mirror_horizontally();
+        own_pawns = own_pawns.rotate();
+        other_pieces = other_pieces.rotate();
     }
 
     // Pawn single-step destinations with no obstruction
@@ -107,24 +95,18 @@ pub fn get_pawn_left_attacks(board: Board, color: Color) -> Vec<(Move, u8)> {
         .split()
         .into_iter()
         .map(|destination| {
-            let pawn = BitBoard(destination.0 >> 7);
-            let m = if color == Color::Black {
-                // De-normalize by reversing colors
-                Move(
-                    pawn.reverse_colors().mirror_horizontally().to_position(),
-                    destination
-                        .reverse_colors()
-                        .mirror_horizontally()
-                        .to_position(),
-                    Promotion::None,
-                )
-            } else {
-                Move(
-                    pawn.to_position(),
-                    destination.to_position(),
-                    Promotion::None,
-                )
-            };
+            let mut destination = destination;
+            let mut pawn = BitBoard(destination.0 >> 7);
+            if color == Color::Black {
+                // De-normalize
+                pawn = pawn.rotate();
+                destination = destination.rotate();
+            }
+            let m = Move(
+                pawn.to_position(),
+                destination.to_position(),
+                Promotion::None,
+            );
             let value = board.get_piece_value(m.1);
             (m, value)
         })
@@ -139,8 +121,8 @@ pub fn get_pawn_right_attacks(board: Board, color: Color) -> Vec<(Move, u8)> {
 
     // Normalize by flipping
     if color == Color::Black {
-        own_pawns = own_pawns.reverse_colors().mirror_horizontally();
-        other_pieces = other_pieces.reverse_colors().mirror_horizontally();
+        own_pawns = own_pawns.rotate();
+        other_pieces = other_pieces.rotate();
     }
 
     // Pawn single-step destinations with no obstruction
@@ -152,24 +134,18 @@ pub fn get_pawn_right_attacks(board: Board, color: Color) -> Vec<(Move, u8)> {
         .split()
         .into_iter()
         .map(|destination| {
-            let pawn = BitBoard(destination.0 >> 9);
-            let m = if color == Color::Black {
-                // De-normalize by reversing colors
-                Move(
-                    pawn.reverse_colors().mirror_horizontally().to_position(),
-                    destination
-                        .reverse_colors()
-                        .mirror_horizontally()
-                        .to_position(),
-                    Promotion::None,
-                )
-            } else {
-                Move(
-                    pawn.to_position(),
-                    destination.to_position(),
-                    Promotion::None,
-                )
-            };
+            let mut destination = destination;
+            let mut pawn = BitBoard(destination.0 >> 9);
+            if color == Color::Black {
+                // De-normalize
+                pawn = pawn.rotate();
+                destination = destination.rotate();
+            }
+            let m = Move(
+                pawn.to_position(),
+                destination.to_position(),
+                Promotion::None,
+            );
             let value = board.get_piece_value(m.1);
             (m, value)
         })
