@@ -77,43 +77,6 @@ impl Brain {
         rayon::spawn(move || {
             let moves = list_potential_moves(board, color);
             let m = moves.into_iter().next().map(|m| m.m);
-
-            // std::thread::sleep(Duration::from_secs(1));
-            // let mut m = None;
-            //
-            // // Check if we can attack anything with pawns
-            // if let Some(destination) = board
-            //     .get_squares_attacked_by_pawns(color)
-            //     .into_iter()
-            //     .next()
-            // {
-            //     // HACK: to find which pawn to use to attack, we re-use the same function
-            //     // but we make all enemy pieces pawns and see what THEY can attack
-            //     let mut board_swap = board;
-            //     board_swap.mutate(|board| {
-            //         let side = board.get_side_mut(color.opposite());
-            //         side.mutate(|side| {
-            //             (*side).pawns |= side.rooks;
-            //             (*side).pawns |= side.knights;
-            //             (*side).pawns |= side.bishops;
-            //             (*side).pawns |= side.queens;
-            //         });
-            //     });
-            //     let origin = board_swap
-            //         .get_squares_attacked_by_pawns(color.opposite())
-            //         .next()
-            //         .expect("inconsistency while trying to get attacking pawn");
-            //
-            //     m = Some(Move(origin, destination, choose_promotion(destination)))
-            // } else {
-            //     // Choose a random pawn and move forwards by one
-            //     let pawns = board.get_pawns(color);
-            //     if let Some(pawn) = pawns.choose(&mut rand::thread_rng()) {
-            //         let origin = pawn.get_position();
-            //         let destination = origin.forwards(color, 1);
-            //         m = Some(Move(origin, destination, choose_promotion(destination)));
-            //     }
-            // }
             sensor.send(m).expect("Failed to dispatch Brain move");
         })
     }
