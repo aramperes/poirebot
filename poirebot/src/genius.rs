@@ -140,11 +140,11 @@ fn list_potential_moves(board: Board, color: Color) -> BTreeSet<BrainMove> {
                 (m.with_promotion(promote(m.1)), base_reward, base_risk)
             })
             .collect(),
-        "rook:slide_north" => pieces::rook::get_rook_north_moves(board, color)
+        "rook:slide_vertical" => pieces::rook::get_rook_vertical_moves(board, color)
             .into_iter()
             .map(|(m, value)| {
                 let base_reward = f32::from(value);
-                let base_risk = 0.5;
+                let base_risk = 0.0;
                 (m, base_reward, base_risk)
             })
             .collect(),
