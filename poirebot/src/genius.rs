@@ -85,14 +85,12 @@ impl Brain {
     pub fn opponent_move(&mut self, m: Move) {
         self.board.apply_move(m);
         self.opponent_last_move = Some(m);
-        println!("\nOpponent moved:\n{}", self.board.draw_ascii(self.color.opposite()));
     }
 
     /// Apply a move by the brain.
     pub fn own_move(&mut self, m: Move) {
         self.board.apply_move(m);
         self.last_move = Some(m);
-        println!("\nOwn move:\n{}", self.board.draw_ascii(self.color.opposite()));
     }
 }
 
