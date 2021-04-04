@@ -1,5 +1,5 @@
-use crate::bitboard::{BitBoard, EMPTY};
-use crate::game::pieces::{Color, FILES, FILE_A, FILE_H, RANKS, RANK_2, RANK_3, RANK_4};
+use crate::bitboard::BitBoard;
+use crate::game::pieces::{Color, FILE_A, FILE_H, RANK_2, RANK_3, RANK_4};
 use crate::game::{Board, Move, Promotion};
 
 /// Returns a collection of moves that are unobstructed pawn double-steps.

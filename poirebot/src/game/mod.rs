@@ -137,7 +137,8 @@ pub struct BoardSide {
     pub king: BitBoard,
     /// Rooks that haven't moved.
     pub unmoved_rooks: BitBoard,
-    /// Pawn that could get en-passant'd in the next turn.
+    /// En-passant target square. This is the 'vulnerable' square for this side, i.e. behind the
+    /// pawn that just did a 2-step.
     pub en_passant_target: BitBoard,
 
     /// Inherited; Where all this side's pieces are.
@@ -258,17 +259,18 @@ impl Board {
                     // Detect capture via en-passant
                     if opponent.en_passant_target.popcnt() == 1 {
                         let en_passant_target = opponent.en_passant_target.to_position();
-                        if en_passant_target == destination.backwards(color, 1) {
+                        if en_passant_target == destination {
                             // holy hell
-                            piece_taken = self.get_piece(en_passant_target);
+                            piece_taken = self.get_piece(en_passant_target.backwards(color, 1));
                         }
                     }
 
                     opponent.en_passant_target = EMPTY;
 
                     // When a pawn does a two-step, it becomes the en passant target
+                    // (the position set is the one 'behind' the pawn that moved)
                     if is_pawn_two_step(&m) {
-                        side.en_passant_target |= destination_bb;
+                        side.en_passant_target |= BitBoard::from(destination.backwards(color, 1));
                     }
                 });
             }
@@ -425,6 +427,31 @@ impl Board {
             Color::White => &mut self.white,
             Color::Black => &mut self.black,
         }
+    }
+
+    pub fn draw_ascii(&self, side: Color) -> String {
+        // let mut pieces: [char; 64] = ['.'; 64];
+        let mut v = Vec::with_capacity(8);
+        let mut s: String = "".to_owned();
+
+        for i in 0..64 {
+            let file = i % 8;
+            let rank = if side.is_black() { i / 8 } else { 7 - (i / 8) };
+            let piece = self
+                .get_piece(Position::from((file, rank)))
+                .map(|p| p.to_letter_notation())
+                .unwrap_or('.');
+
+            s.push(piece);
+            s.push(' ');
+
+            if file == 7 {
+                v.push(s.clone());
+                s.clear();
+            }
+        }
+
+        v.join("\n")
     }
 }
 
@@ -651,15 +678,16 @@ mod tests {
     #[test]
     fn test_white_en_passant() {
         // Initialize with a board with imminent en passant by white
-        let board_fen = "rnbqkbnr/ppp1pppp/8/3pP3/8/8/PPPP1PPP/RNBQKBNR w KQkq d6 0 1";
+        let board_fen = "rnbqkbnr/ppp5/4p3/2P2ppp/8/8/P4PPP/RNBQKBNR w KQkq b6 0 1";
         let mut board = Board::from_fen(board_fen).unwrap();
 
         // Do the en passant
-        board.apply_move(("e5", "d6").into());
+        board.apply_move(("b7", "b5").into());
+        board.apply_move(("c5", "b6").into());
         assert_eq!(
-            board.get_piece("d6".into()),
-            Some(Pieces::Pawn(Color::White, "d6".into()))
+            board.get_piece("b6".into()),
+            Some(Pieces::Pawn(Color::White, "b6".into()))
         );
-        assert_eq!(board.get_piece("d5".into()), None);
+        assert_eq!(board.get_piece("b5".into()), None);
     }
 }

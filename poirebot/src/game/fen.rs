@@ -118,7 +118,7 @@ impl Board {
             }
             if let Some((pos, color)) = en_passant_target {
                 if color == Color::White {
-                    side.en_passant_target |= BitBoard::from(pos.forwards(color, 1));
+                    side.en_passant_target |= BitBoard::from(pos);
                 }
             }
         });
@@ -141,7 +141,7 @@ impl Board {
             }
             if let Some((pos, color)) = en_passant_target {
                 if color == Color::Black {
-                    side.en_passant_target |= BitBoard::from(pos.forwards(color, 1));
+                    side.en_passant_target |= BitBoard::from(pos);
                 }
             }
         });

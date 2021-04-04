@@ -159,6 +159,41 @@ impl Pieces {
     pub fn is_white(&self) -> bool {
         matches!(self.get_color(), Color::White)
     }
+
+    /// Converts the piece type & color to a single letter. Uppercase is for white characters.
+    pub fn to_letter_notation(&self) -> char {
+        let c = match self {
+            Pieces::Pawn(_, _) => 'p',
+            Pieces::Rook(_, _) => 'r',
+            Pieces::Knight(_, _) => 'n',
+            Pieces::Bishop(_, _) => 'b',
+            Pieces::Queen(_, _) => 'q',
+            Pieces::King(_, _) => 'k',
+        };
+        if self.get_color() == Color::Black {
+            c
+        } else {
+            c.to_ascii_uppercase()
+        }
+    }
+
+    /// Returns the piece type & color in unicode.
+    pub fn to_unicode_symbol(&self) -> char {
+        match self {
+            Pieces::Pawn(Color::White, _) => '♙',
+            Pieces::Pawn(Color::Black, _) => '♟',
+            Pieces::Rook(Color::White, _) => '♖',
+            Pieces::Rook(Color::Black, _) => '♜',
+            Pieces::Knight(Color::White, _) => '♘',
+            Pieces::Knight(Color::Black, _) => '♞',
+            Pieces::Bishop(Color::White, _) => '♗',
+            Pieces::Bishop(Color::Black, _) => '♝',
+            Pieces::Queen(Color::White, _) => '♕',
+            Pieces::Queen(Color::Black, _) => '♛',
+            Pieces::King(Color::White, _) => '♔',
+            Pieces::King(Color::Black, _) => '♚',
+        }
+    }
 }
 
 /// When the king moves, find whether it was a castling action.
@@ -185,7 +220,7 @@ pub fn get_castling_rook_move(king_move: &Move) -> Option<Move> {
 /// This function assumes the piece is already determined to be a pawn.
 pub fn is_pawn_two_step(pawn_move: &Move) -> bool {
     let Move(origin, destination, _) = pawn_move;
-    origin.distance_rank(destination) == 2 && (origin.rank_y == 2 || origin.rank_y == 7)
+    origin.distance_rank(destination) == 2 && (origin.rank_y == 1 || origin.rank_y == 6)
 }
 
 /// A chess piece set (white or black).
@@ -201,5 +236,13 @@ impl Color {
             Self::White => Self::Black,
             Self::Black => Self::White,
         }
+    }
+
+    pub fn is_black(&self) -> bool {
+        *self == Color::Black
+    }
+
+    pub fn is_white(&self) -> bool {
+        *self == Color::White
     }
 }

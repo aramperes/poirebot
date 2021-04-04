@@ -1,6 +1,5 @@
-use crate::bitboard::{BitBoard, EMPTY};
-use crate::game::pieces::{Color, FILES, RANKS};
-use crate::game::position::Position;
+use crate::bitboard::BitBoard;
+use crate::game::pieces::{Color, FILES};
 use crate::game::{Board, Move, Promotion};
 
 pub fn get_rook_vertical_moves(board: Board, color: Color) -> Vec<(Move, u8)> {
@@ -29,7 +28,7 @@ pub fn get_rook_vertical_moves(board: Board, color: Color) -> Vec<(Move, u8)> {
         let changed = difference ^ all_pieces;
         let attacks = changed & file_mask & !own_pieces;
 
-        let mut attacks = attacks.into_iter();
+        let mut attacks = attacks;
         while attacks.popcnt() > 0 {
             let attack = attacks.next().unwrap();
             if attacks.popcnt() == 0 {
@@ -52,7 +51,7 @@ pub fn get_rook_vertical_moves(board: Board, color: Color) -> Vec<(Move, u8)> {
         let changed = difference ^ all_pieces;
         let attacks = changed & file_mask & !own_pieces;
 
-        let mut attacks = attacks.into_iter();
+        let mut attacks = attacks;
         let real_rook_pos = rook_pos.flip();
         while attacks.popcnt() > 0 {
             let attack = attacks.next().unwrap().flip();
@@ -88,12 +87,23 @@ pub fn get_rook_vertical_moves(board: Board, color: Color) -> Vec<(Move, u8)> {
 #[cfg(test)]
 mod tests {
     use crate::game::pieces::Color;
-    use crate::game::Board;
+    use crate::game::{Board, Move};
 
     #[test]
     fn test_get_rook_north_moves() {
         let board = Board::from_fen("2b1kbnr/rppppppp/n7/Pp5P/2P4q/R7/2PPPPP1/1NBQKBNR w Kk - 0 1")
             .unwrap();
-        panic!("{:?}", super::get_rook_vertical_moves(board, Color::White));
+        let moves = super::get_rook_vertical_moves(board, Color::White);
+        assert_eq!(
+            moves,
+            vec![
+                (Move::from_pure_notation("h1h2"), 0),
+                (Move::from_pure_notation("h1h3"), 0),
+                (Move::from_pure_notation("h1h4"), 8),
+                (Move::from_pure_notation("a3a4"), 0),
+                (Move::from_pure_notation("a3a2"), 0),
+                (Move::from_pure_notation("a3a1"), 0)
+            ]
+        );
     }
 }
