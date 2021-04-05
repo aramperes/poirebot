@@ -429,8 +429,8 @@ impl Board {
         }
     }
 
+    /// Draws the board as an 8x8 ASCII string
     pub fn draw_ascii(&self, side: Color) -> String {
-        // let mut pieces: [char; 64] = ['.'; 64];
         let mut v = Vec::with_capacity(8);
         let mut s: String = "".to_owned();
 

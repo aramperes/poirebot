@@ -289,6 +289,44 @@ impl BitBoard {
         self.reverse_colors().mirror_horizontally()
     }
 
+    /// Flip this `Bitboard` about the diagonal.
+    /// Source: https://www.chessprogramming.org/Flipping_Mirroring_and_Rotating#Diagonal
+    #[inline]
+    #[rustfmt::skip]
+    pub fn flip_diagonally(&self) -> BitBoard {
+        let mut x = self.0;
+        let mut t;
+        let k1: u64 = 0x5500550055005500;
+        let k2: u64 = 0x3333000033330000;
+        let k4: u64 = 0x0f0f0f0f00000000;
+        t  = k4 & (x ^ (x << 28));
+        x ^=       t ^ (t >> 28) ;
+        t  = k2 & (x ^ (x << 14));
+        x ^=       t ^ (t >> 14) ;
+        t  = k1 & (x ^ (x <<  7));
+        x ^=       t ^ (t >>  7) ;
+        BitBoard(x)
+    }
+
+    /// Flip this `Bitboard` about the anti-diagonal.
+    /// Source: https://www.chessprogramming.org/Flipping_Mirroring_and_Rotating#Anti-Diagonal
+    #[inline]
+    #[rustfmt::skip]
+    pub fn flip_anti_diagonally(&self) -> BitBoard {
+        let mut x = self.0;
+        let mut t;
+        let k1: u64 = 0xaa00aa00aa00aa00;
+        let k2: u64 = 0xcccc0000cccc0000;
+        let k4: u64 = 0xf0f0f0f00f0f0f0f;
+        t  =       x ^ (x << 36) ;
+        x ^= k4 & (t ^ (x >> 36));
+        t  = k2 & (x ^ (x << 18));
+        x ^=       t ^ (t >> 18) ;
+        t  = k1 & (x ^ (x <<  9));
+        x ^=       t ^ (t >>  9) ;
+        BitBoard(x)
+    }
+
     /// Convert this `BitBoard` to a `usize` (for table lookups)
     #[inline]
     pub fn to_size(&self, rightshift: u8) -> usize {

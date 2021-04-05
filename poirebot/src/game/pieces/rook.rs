@@ -1,87 +1,20 @@
-use crate::bitboard::BitBoard;
-use crate::game::pieces::{Color, FILES};
-use crate::game::{Board, Move, Promotion};
+use crate::game::pieces::sliding::{
+    get_sliding_east_moves, get_sliding_vertical_moves, get_sliding_west_moves,
+};
+use crate::game::pieces::Color;
+use crate::game::{Board, Move};
 
-pub fn get_rook_vertical_moves(board: Board, color: Color) -> Vec<(Move, u8)> {
-    let mut own_rooks = board.get_side(color).rooks;
-    let mut all_pieces = board.black.pieces | board.white.pieces;
-    let mut own_pieces = board.get_side(color).pieces;
-
-    // Normalize by flipping
-    if color == Color::Black {
-        own_rooks = own_rooks.rotate();
-        all_pieces = all_pieces.rotate();
-        own_pieces = own_pieces.rotate();
-    }
+pub fn get_rook_sliding_moves(board: Board, color: Color) -> Vec<(Move, u8)> {
+    let own_rooks = board.get_side(color).rooks;
 
     let mut moves = Vec::new();
-
-    // o^(o-2r) method
-    for rook in own_rooks {
-        let mut rook_pos = rook;
-        let mut rook = BitBoard::from(rook);
-
-        // North
-        let file_mask: BitBoard = FILES[rook_pos.file_x as usize];
-        let blockers = all_pieces & file_mask;
-        let difference = BitBoard(blockers.0.wrapping_sub(BitBoard(rook.0.wrapping_mul(2)).0));
-        let changed = difference ^ all_pieces;
-        let attacks = changed & file_mask & !own_pieces;
-
-        let mut attacks = attacks;
-        while attacks.popcnt() > 0 {
-            let attack = attacks.next().unwrap();
-            if attacks.popcnt() == 0 {
-                let val = board.get_piece_value(attack);
-                moves.push((Move(rook_pos, attack, Promotion::None), val));
-            } else {
-                moves.push((Move(rook_pos, attack, Promotion::None), 0));
-            }
-        }
-
-        // South
-        rook_pos = rook_pos.flip();
-        rook = rook.reverse_colors();
-        all_pieces = all_pieces.reverse_colors();
-        own_pieces = own_pieces.reverse_colors();
-
-        let file_mask: BitBoard = FILES[rook_pos.file_x as usize];
-        let blockers = all_pieces & file_mask;
-        let difference = BitBoard(blockers.0.wrapping_sub(BitBoard(rook.0.wrapping_mul(2)).0));
-        let changed = difference ^ all_pieces;
-        let attacks = changed & file_mask & !own_pieces;
-
-        let mut attacks = attacks;
-        let real_rook_pos = rook_pos.flip();
-        while attacks.popcnt() > 0 {
-            let attack = attacks.next().unwrap().flip();
-            if attacks.popcnt() == 0 {
-                let val = board.get_piece_value(attack);
-                moves.push((Move(real_rook_pos, attack, Promotion::None), val));
-            } else {
-                moves.push((Move(real_rook_pos, attack, Promotion::None), 0));
-            }
-        }
-
-        // Reset flipping
-        all_pieces = all_pieces.reverse_colors();
-        own_pieces = own_pieces.reverse_colors();
+    for rook in own_rooks.into_iter() {
+        moves.extend(get_sliding_vertical_moves(board, color, rook));
+        moves.extend(get_sliding_east_moves(board, color, rook));
+        moves.extend(get_sliding_west_moves(board, color, rook));
     }
 
     moves
-        .into_iter()
-        .map(|(m, v)| {
-            let mut m = m;
-
-            if color == Color::Black {
-                // De-normalize
-                m.0 = BitBoard::from(m.0).rotate().to_position();
-                m.1 = BitBoard::from(m.1).rotate().to_position();
-            }
-
-            (m, v)
-        })
-        .collect()
 }
 
 #[cfg(test)]
@@ -90,19 +23,47 @@ mod tests {
     use crate::game::{Board, Move};
 
     #[test]
-    fn test_get_rook_north_moves() {
-        let board = Board::from_fen("2b1kbnr/rppppppp/n7/Pp5P/2P4q/R7/2PPPPP1/1NBQKBNR w Kk - 0 1")
-            .unwrap();
-        let moves = super::get_rook_vertical_moves(board, Color::White);
+    fn test_get_white_rook_sliding_moves() {
+        let board =
+            Board::from_fen("2b1kb1r/rpppp1pp/8/Pp5P/2P4q/n1R1p2R/2PPPPP1/1NBQKBNn w k - 0 1")
+                .unwrap();
+        let moves = super::get_rook_sliding_moves(board, Color::White);
         assert_eq!(
             moves,
             vec![
-                (Move::from_pure_notation("h1h2"), 0),
-                (Move::from_pure_notation("h1h3"), 0),
-                (Move::from_pure_notation("h1h4"), 8),
-                (Move::from_pure_notation("a3a4"), 0),
-                (Move::from_pure_notation("a3a2"), 0),
-                (Move::from_pure_notation("a3a1"), 0)
+                (Move::from_pure_notation("c3d3"), 0),
+                (Move::from_pure_notation("c3e3"), 1),
+                (Move::from_pure_notation("c3b3"), 0),
+                (Move::from_pure_notation("c3a3"), 3),
+                (Move::from_pure_notation("h3h4"), 8),
+                (Move::from_pure_notation("h3h2"), 0),
+                (Move::from_pure_notation("h3h1"), 3),
+                (Move::from_pure_notation("h3g3"), 0),
+                (Move::from_pure_notation("h3f3"), 0),
+                (Move::from_pure_notation("h3e3"), 1),
+            ]
+        );
+    }
+
+    #[test]
+    fn test_get_black_rook_sliding_moves() {
+        let board =
+            Board::from_fen("2B1KB1R/RPPPP1PP/8/pP5p/2p4Q/N1r1P2r/2ppppp1/1nbqkbnN b K - 0 1")
+                .unwrap();
+        let moves = super::get_rook_sliding_moves(board, Color::Black);
+        assert_eq!(
+            moves,
+            vec![
+                (Move::from_pure_notation("c3d3"), 0),
+                (Move::from_pure_notation("c3e3"), 1),
+                (Move::from_pure_notation("c3b3"), 0),
+                (Move::from_pure_notation("c3a3"), 3),
+                (Move::from_pure_notation("h3h4"), 8),
+                (Move::from_pure_notation("h3h2"), 0),
+                (Move::from_pure_notation("h3h1"), 3),
+                (Move::from_pure_notation("h3g3"), 0),
+                (Move::from_pure_notation("h3f3"), 0),
+                (Move::from_pure_notation("h3e3"), 1),
             ]
         );
     }
