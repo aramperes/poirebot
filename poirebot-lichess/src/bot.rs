@@ -77,7 +77,11 @@ async fn find_and_send_move(
         .write_in_bot_chat(
             game_id,
             "player",
-            format!("Move generation took {} microseconds", duration.as_micros()).as_str(),
+            format!(
+                "Move generation took {} seconds",
+                (duration.as_secs_f32() * 10000.0).round() / 10000.0
+            )
+            .as_str(),
         )
         .await
         .unwrap_or(());
