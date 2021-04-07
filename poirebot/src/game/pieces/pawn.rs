@@ -6,7 +6,7 @@ use crate::game::Board;
 pub fn get_pawn_moves_and_attacks(board: Board, color: Color, origin: &BitBoard) -> BitBoard {
     let mut result = EMPTY;
 
-    let all_pieces = &board.white.pieces | &board.black.pieces;
+    let all_pieces = board.white.pieces | board.black.pieces;
     let other_side = board.get_side(color.opposite());
     let other_pieces = &other_side.pieces;
     let other_en_passant_target = &other_side.en_passant_target;
@@ -123,6 +123,25 @@ mod tests {
                 .collect::<Vec<Position>>(),
             vec![Position::from("g4"), Position::from("h4")]
         );
+
+        // test all pawn moves and attacks at once
+        assert_eq!(
+            super::get_pawn_moves_and_attacks(board, Color::White, &board.white.pawns)
+                .collect::<Vec<Position>>(),
+            vec![
+                Position::from("a3"),
+                Position::from("b3"),
+                Position::from("a4"),
+                Position::from("e4"),
+                Position::from("g4"),
+                Position::from("h4"),
+                Position::from("e5"),
+                Position::from("f5"),
+                Position::from("g5"),
+                Position::from("c6"),
+                Position::from("d6"),
+            ]
+        );
     }
 
     #[test]
@@ -182,6 +201,22 @@ mod tests {
             super::get_pawn_moves_and_attacks(board, Color::Black, &BitBoard::from_position("a3"))
                 .collect::<Vec<Position>>(),
             vec![Position::from("b2")]
+        );
+
+        // test all pawn moves and attacks at once
+        assert_eq!(
+            super::get_pawn_moves_and_attacks(board, Color::Black, &board.black.pawns)
+                .collect::<Vec<Position>>(),
+            vec![
+                Position::from("a2"),
+                Position::from("b2"),
+                Position::from("c2"),
+                Position::from("d2"),
+                Position::from("f3"),
+                Position::from("h5"),
+                Position::from("a6"),
+                Position::from("h6"),
+            ]
         );
     }
 }
