@@ -107,7 +107,7 @@ fn list_potential_moves(board: Board, color: Color) -> BTreeSet<BrainMove> {
             "pawn" => side
                 .pawns
                 .flat_map(|pawn| {
-                    pieces::pawn::get_pawn_moves_and_attacks(board, color, &BitBoard::from(pawn))
+                    pieces::pawn::get_pawn_moves_and_attacks(&board, color, &BitBoard::from(pawn))
                         .map(move |dest| Move::from((pawn, dest)).with_promotion(promote(dest)))
                 })
                 .collect(),
