@@ -11,8 +11,7 @@ pub fn get_pawn_moves_and_attacks(board: &Board, color: Color, origin: &BitBoard
 
     let all_pieces = board.white.pieces | board.black.pieces;
     let other_side = board.get_side(color.opposite());
-    let other_pieces = &other_side.pieces;
-    let other_en_passant_target = &other_side.en_passant_target;
+    let capturable_pieces = other_side.pieces | other_side.en_passant_target;
 
     if color.is_white() {
         // Single steps (lshift by 8 bits for: rank +1)
@@ -21,12 +20,12 @@ pub fn get_pawn_moves_and_attacks(board: &Board, color: Color, origin: &BitBoard
         // Right-side attacks (lshift by 9 bits for: rank +1, file +1)
         // 'H' file is excluded to prevent overflow
         // Also checks possibility of en-passant
-        result |= (origin & !FILE_H) << 9 & (other_pieces | other_en_passant_target);
+        result |= (origin & !FILE_H) << 9 & capturable_pieces;
 
         // Left-side attacks (lshift by 7 bits for: rank +1, file -1).
         // 'A' file is excluded to prevent underflow
         // Also checks possibility of en-passant
-        result |= ((origin & !FILE_A) << 7) & (other_pieces | other_en_passant_target);
+        result |= ((origin & !FILE_A) << 7) & capturable_pieces;
 
         // Double steps
         // 1. Only include pawns in rank 2
@@ -42,12 +41,12 @@ pub fn get_pawn_moves_and_attacks(board: &Board, color: Color, origin: &BitBoard
         // Right-side attacks (rshift by 7 bits for: rank -1, file +1)
         // 'H' file is excluded to prevent overflow
         // Also checks possibility of en-passant
-        result |= (origin & !FILE_H) >> 7 & (other_pieces | other_en_passant_target);
+        result |= (origin & !FILE_H) >> 7 & capturable_pieces;
 
         // Left-side attacks (rshift by 9 bits for: rank -1, file -1).
         // 'A' file is excluded to prevent underflow
         // Also checks possibility of en-passant
-        result |= ((origin & !FILE_A) >> 9) & (other_pieces | other_en_passant_target);
+        result |= ((origin & !FILE_A) >> 9) & capturable_pieces;
 
         // Double steps
         // 1. Only include pawns in rank 7
