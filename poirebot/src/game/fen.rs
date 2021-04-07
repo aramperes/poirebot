@@ -111,10 +111,10 @@ impl Board {
                 }
             }
             if white_queenside_castle {
-                side.unmoved_rooks |= BitBoard::from_position("a1".into());
+                side.unmoved_rooks |= BitBoard::from_position("a1");
             }
             if white_kingside_castle {
-                side.unmoved_rooks |= BitBoard::from_position("h1".into());
+                side.unmoved_rooks |= BitBoard::from_position("h1");
             }
             if let Some((pos, color)) = en_passant_target {
                 if color == Color::White {
@@ -134,10 +134,10 @@ impl Board {
                 }
             }
             if black_queenside_castle {
-                side.unmoved_rooks |= BitBoard::from_position("a8".into());
+                side.unmoved_rooks |= BitBoard::from_position("a8");
             }
             if black_kingside_castle {
-                side.unmoved_rooks |= BitBoard::from_position("h8".into());
+                side.unmoved_rooks |= BitBoard::from_position("h8");
             }
             if let Some((pos, color)) = en_passant_target {
                 if color == Color::Black {

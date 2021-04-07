@@ -458,22 +458,19 @@ impl Board {
 impl Default for Board {
     fn default() -> Self {
         let white = BoardSide::new(Color::White, |side| {
-            side.pawns = BitBoard::from_position("a2".into())
-                | BitBoard::from_position("b2".into())
-                | BitBoard::from_position("c2".into())
-                | BitBoard::from_position("d2".into())
-                | BitBoard::from_position("e2".into())
-                | BitBoard::from_position("f2".into())
-                | BitBoard::from_position("g2".into())
-                | BitBoard::from_position("h2".into());
-            side.rooks =
-                BitBoard::from_position("a1".into()) | BitBoard::from_position("h1".into());
-            side.knights =
-                BitBoard::from_position("b1".into()) | BitBoard::from_position("g1".into());
-            side.bishops =
-                BitBoard::from_position("c1".into()) | BitBoard::from_position("f1".into());
-            side.queens = BitBoard::from_position("d1".into());
-            side.king = BitBoard::from_position("e1".into());
+            side.pawns = BitBoard::from_position("a2")
+                | BitBoard::from_position("b2")
+                | BitBoard::from_position("c2")
+                | BitBoard::from_position("d2")
+                | BitBoard::from_position("e2")
+                | BitBoard::from_position("f2")
+                | BitBoard::from_position("g2")
+                | BitBoard::from_position("h2");
+            side.rooks = BitBoard::from_position("a1") | BitBoard::from_position("h1");
+            side.knights = BitBoard::from_position("b1") | BitBoard::from_position("g1");
+            side.bishops = BitBoard::from_position("c1") | BitBoard::from_position("f1");
+            side.queens = BitBoard::from_position("d1");
+            side.king = BitBoard::from_position("e1");
             side.unmoved_rooks = side.rooks;
         });
 

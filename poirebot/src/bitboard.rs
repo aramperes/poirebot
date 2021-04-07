@@ -279,8 +279,8 @@ impl BitBoard {
 
     /// Construct a new `BitBoard` with a particular `Position` set
     #[inline]
-    pub fn from_position(position: Position) -> BitBoard {
-        BitBoard(1u64 << position.to_int())
+    pub fn from_position<T: Into<Position>>(position: T) -> BitBoard {
+        BitBoard(1u64 << position.into().to_int())
     }
 
     /// Convert to Position
@@ -377,9 +377,9 @@ impl BitBoard {
     }
 }
 
-impl From<Position> for BitBoard {
-    fn from(pos: Position) -> Self {
-        Self::from_position(pos)
+impl<T: Into<Position>> From<T> for BitBoard {
+    fn from(into_pos: T) -> Self {
+        Self::from_position(into_pos)
     }
 }
 
@@ -415,8 +415,8 @@ mod tests {
 
     #[test]
     fn test_bitboard() {
-        let one_end = BitBoard::from_position("a1".into());
-        let other_end = BitBoard::from_position("h8".into());
+        let one_end = BitBoard::from_position("a1");
+        let other_end = BitBoard::from_position("h8");
         let combined = one_end | other_end;
 
         assert_eq!(
