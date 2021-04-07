@@ -1,212 +1,188 @@
-use crate::bitboard::BitBoard;
-use crate::game::pieces::{Color, FILE_A, FILE_H, RANK_2, RANK_3, RANK_4};
-use crate::game::{Board, Move, Promotion};
+use crate::bitboard::{BitBoard, EMPTY};
+use crate::game::pieces::{Color, FILE_A, FILE_H, RANK_2, RANK_3, RANK_4, RANK_5, RANK_6, RANK_7};
+use crate::game::position::Position;
+use crate::game::Board;
 
-/// Returns a collection of moves that are unobstructed pawn double-steps.
-pub fn get_pawn_double_steps(board: Board, color: Color) -> Vec<Move> {
-    let mut own_pawns = board.get_side(color).pawns;
-    let mut all_pieces = board.white.pieces | board.black.pieces;
+/// Generates a bitboard with the moves that can be performed by the pawn at the given origin.
+pub fn get_pawn_moves_and_attacks(board: Board, color: Color, origin: Position) -> BitBoard {
+    let origin_bb = BitBoard::from(origin);
+    let mut result = EMPTY;
 
-    // Normalize by flipping
-    if color == Color::Black {
-        own_pawns = own_pawns.rotate();
-        all_pieces = all_pieces.rotate();
+    let all_pieces = &board.white.pieces | &board.black.pieces;
+    let other_side = board.get_side(color.opposite());
+    let other_pieces = &other_side.pieces;
+    let other_en_passant_target = &other_side.en_passant_target;
+
+    if color.is_white() {
+        // Single steps (lshift by 8 bits for: rank +1)
+        result |= (origin_bb << 8) & !all_pieces;
+
+        // Right-side attacks (lshift by 9 bits for: rank +1, file +1)
+        // 'H' file is excluded to prevent overflow
+        // Also checks possibility of en-passant
+        result |= (origin_bb & !FILE_H) << 9 & (other_pieces | other_en_passant_target);
+
+        // Left-side attacks (lshift by 7 bits for: rank +1, file -1).
+        // 'A' file is excluded to prevent underflow
+        // Also checks possibility of en-passant
+        result |= ((origin_bb & !FILE_A) << 7) & (other_pieces | other_en_passant_target);
+
+        // Double steps
+        // 1. Only include pawns in rank 2
+        // 2. Ensure there are no pieces in rank 3
+        // 3. Ensure there are no pieces in rank 4
+        // 4. Add 2 ranks to the original position
+        result |=
+            (origin_bb & RANK_2 & !(all_pieces & RANK_3) >> 8 & !(all_pieces & RANK_4) >> 16) << 16;
+    } else {
+        // Single steps (rshift by 8 bits for: rank -1)
+        result |= (origin_bb >> 8) & !all_pieces;
+
+        // Right-side attacks (rshift by 7 bits for: rank -1, file +1)
+        // 'H' file is excluded to prevent overflow
+        // Also checks possibility of en-passant
+        result |= (origin_bb & !FILE_H) >> 7 & (other_pieces | other_en_passant_target);
+
+        // Left-side attacks (rshift by 9 bits for: rank -1, file -1).
+        // 'A' file is excluded to prevent underflow
+        // Also checks possibility of en-passant
+        result |= ((origin_bb & !FILE_A) >> 9) & (other_pieces | other_en_passant_target);
+
+        // Double steps
+        // 1. Only include pawns in rank 7
+        // 2. Ensure there are no pieces in rank 6
+        // 3. Ensure there are no pieces in rank 5
+        // 4. Remove 2 ranks to the original position
+        result |=
+            (origin_bb & RANK_7 & !(all_pieces & RANK_6) << 8 & !(all_pieces & RANK_5) << 16) >> 16;
     }
 
-    // Pawns on rank 2 that are unobstructed to rank 4
-    let pawns = own_pawns
-        & RANK_2
-        & !BitBoard((all_pieces & RANK_3).0 >> 8)
-        & !BitBoard((all_pieces & RANK_4).0 >> 16);
-
-    // Convert to `Move`
-    pawns
-        .split()
-        .into_iter()
-        .map(|pawn| {
-            let mut pawn = pawn;
-            let mut destination = BitBoard(pawn.0 << 16); // Add 2 ranks
-            if color == Color::Black {
-                // De-normalize
-                pawn = pawn.rotate();
-                destination = destination.rotate();
-            }
-            Move(
-                pawn.to_position(),
-                destination.to_position(),
-                Promotion::None,
-            )
-        })
-        .collect()
-}
-
-/// Returns a collection of moves that are unobstructed pawn double-steps.
-pub fn get_pawn_single_steps(board: Board, color: Color) -> Vec<Move> {
-    let mut own_pawns = board.get_side(color).pawns;
-    let mut all_pieces = board.white.pieces | board.black.pieces;
-
-    // Normalize by flipping
-    if color == Color::Black {
-        own_pawns = own_pawns.rotate();
-        all_pieces = all_pieces.rotate();
-    }
-
-    // Pawn single-step destinations with no obstruction
-    let destinations = BitBoard(own_pawns.0 << 8) & !all_pieces;
-
-    // Convert to `Move`
-    destinations
-        .split()
-        .into_iter()
-        .map(|destination| {
-            let mut pawn = BitBoard(destination.0 >> 8); // Remove 1 rank
-            let mut destination = destination;
-            if color == Color::Black {
-                // De-normalize
-                pawn = pawn.rotate();
-                destination = destination.rotate();
-            }
-            Move(
-                pawn.to_position(),
-                destination.to_position(),
-                Promotion::None,
-            )
-        })
-        .collect()
-}
-
-/// Returns a collection of moves that are unobstructed pawn attacks on the left side.
-/// Each move is paired with the value of the piece taken.
-pub fn get_pawn_left_attacks(board: Board, color: Color) -> Vec<(Move, u8)> {
-    let mut own_pawns = board.get_side(color).pawns;
-    let mut other_pieces = board.get_side(color.opposite()).pieces;
-
-    // Normalize by flipping
-    if color == Color::Black {
-        own_pawns = own_pawns.rotate();
-        other_pieces = other_pieces.rotate();
-    }
-
-    // Pawn single-step destinations with no obstruction
-    let attacked = BitBoard((own_pawns & !FILE_A).0 << 7) & other_pieces;
-
-    // Convert to `Move`
-    attacked
-        .split()
-        .into_iter()
-        .map(|destination| {
-            let mut destination = destination;
-            let mut pawn = BitBoard(destination.0 >> 7);
-            if color == Color::Black {
-                // De-normalize
-                pawn = pawn.rotate();
-                destination = destination.rotate();
-            }
-            let m = Move(
-                pawn.to_position(),
-                destination.to_position(),
-                Promotion::None,
-            );
-            let value = board.get_piece_value(m.1);
-            (m, value)
-        })
-        .collect()
-}
-
-/// Returns a collection of moves that are unobstructed pawn attacks on the right side.
-/// Each move is paired with the value of the piece taken.
-pub fn get_pawn_right_attacks(board: Board, color: Color) -> Vec<(Move, u8)> {
-    let mut own_pawns = board.get_side(color).pawns;
-    let mut other_pieces = board.get_side(color.opposite()).pieces;
-
-    // Normalize by flipping
-    if color == Color::Black {
-        own_pawns = own_pawns.rotate();
-        other_pieces = other_pieces.rotate();
-    }
-
-    // Pawn single-step destinations with no obstruction
-    let attacked_squares = BitBoard((own_pawns & !FILE_H).0 << 9);
-    let attacked = attacked_squares & other_pieces;
-
-    // Convert to `Move`
-    attacked
-        .split()
-        .into_iter()
-        .map(|destination| {
-            let mut destination = destination;
-            let mut pawn = BitBoard(destination.0 >> 9);
-            if color == Color::Black {
-                // De-normalize
-                pawn = pawn.rotate();
-                destination = destination.rotate();
-            }
-            let m = Move(
-                pawn.to_position(),
-                destination.to_position(),
-                Promotion::None,
-            );
-            let value = board.get_piece_value(m.1);
-            (m, value)
-        })
-        .collect()
+    result
 }
 
 #[cfg(test)]
 mod tests {
     use crate::game::pieces::Color;
-    use crate::game::{Board, Move};
+    use crate::game::position::Position;
+    use crate::game::Board;
 
     #[test]
-    fn test_pawn_double_step_white() {
-        let board = Board::default();
-        let double_steps = super::get_pawn_double_steps(board, Color::White);
-        assert_eq!(
-            double_steps,
-            vec![
-                ("a2", "a4").into(),
-                ("b2", "b4").into(),
-                ("c2", "c4").into(),
-                ("d2", "d4").into(),
-                ("e2", "e4").into(),
-                ("f2", "f4").into(),
-                ("g2", "g4").into(),
-                ("h2", "h4").into(),
-            ]
-        );
-    }
-
-    #[test]
-    fn test_pawn_double_step_black() {
-        let board = Board::default();
-        let double_steps = super::get_pawn_double_steps(board, Color::Black);
-        assert_eq!(
-            double_steps,
-            vec![
-                ("a7", "a5").into(),
-                ("b7", "b5").into(),
-                ("c7", "c5").into(),
-                ("d7", "d5").into(),
-                ("e7", "e5").into(),
-                ("f7", "f5").into(),
-                ("g7", "g5").into(),
-                ("h7", "h5").into(),
-            ]
-            .into_iter()
-            .rev()
-            .collect::<Vec<Move>>()
-        );
-    }
-
-    #[test]
-    fn test_pawn_double_step_obstructed() {
+    fn test_get_pawn_moves_and_attacks_white() {
         let board =
-            Board::from_fen("rn2kbnr/pp2pppp/2p5/8/1b3P2/3qP1Pp/PPPP3P/RNBQKBNR w KQkq - 0 1")
+            Board::from_fen("rn2k2r/pp2pp1p/8/2pPb1p1/1b3P1n/3qP1Pp/PP1P3P/RNBQKBNR w KQkq c6 0 1")
                 .unwrap();
-        let double_steps = super::get_pawn_double_steps(board, Color::White);
+
+        // a2 can do single-step or double-step
         assert_eq!(
-            double_steps,
-            vec![("a2", "a4").into(), ("c2", "c4").into(),]
+            super::get_pawn_moves_and_attacks(board, Color::White, "a2".into())
+                .collect::<Vec<Position>>(),
+            vec![Position::from("a3"), Position::from("a4")]
+        );
+
+        // b2 can do single-step only
+        assert_eq!(
+            super::get_pawn_moves_and_attacks(board, Color::White, "b2".into())
+                .collect::<Vec<Position>>(),
+            vec![Position::from("b3")]
+        );
+
+        // d2 cannot move
+        assert_eq!(
+            super::get_pawn_moves_and_attacks(board, Color::White, "d2".into())
+                .collect::<Vec<Position>>(),
+            vec![]
+        );
+
+        // d5 can do en-passant or single-step
+        assert_eq!(
+            super::get_pawn_moves_and_attacks(board, Color::White, "d5".into())
+                .collect::<Vec<Position>>(),
+            vec![Position::from("c6"), Position::from("d6")]
+        );
+
+        // e3 can do single-step
+        assert_eq!(
+            super::get_pawn_moves_and_attacks(board, Color::White, "e3".into())
+                .collect::<Vec<Position>>(),
+            vec![Position::from("e4")]
+        );
+
+        // f4 can capture left, right, or single-step
+        assert_eq!(
+            super::get_pawn_moves_and_attacks(board, Color::White, "f4".into())
+                .collect::<Vec<Position>>(),
+            vec![
+                Position::from("e5"),
+                Position::from("f5"),
+                Position::from("g5")
+            ]
+        );
+
+        // g3 can capture right, or single-step
+        assert_eq!(
+            super::get_pawn_moves_and_attacks(board, Color::White, "g3".into())
+                .collect::<Vec<Position>>(),
+            vec![Position::from("g4"), Position::from("h4")]
+        );
+    }
+
+    #[test]
+    fn test_get_pawn_moves_and_attacks_black() {
+        let board =
+            Board::from_fen("rn2k2r/p4p1p/3P1b2/b7/5Ppn/pppqP1Pp/PP1P3P/RNBQKBNR b KQkq f3 0 1")
+                .unwrap();
+
+        // h8 can do single-step or double-step
+        assert_eq!(
+            super::get_pawn_moves_and_attacks(board, Color::Black, "h7".into())
+                .collect::<Vec<Position>>(),
+            vec![Position::from("h5"), Position::from("h6")]
+        );
+
+        // h3 cannot move
+        assert_eq!(
+            super::get_pawn_moves_and_attacks(board, Color::Black, "h3".into())
+                .collect::<Vec<Position>>(),
+            vec![]
+        );
+
+        // g4 can only do en-passant
+        assert_eq!(
+            super::get_pawn_moves_and_attacks(board, Color::Black, "g4".into())
+                .collect::<Vec<Position>>(),
+            vec![Position::from("f3")]
+        );
+
+        // f7 cannot move
+        assert_eq!(
+            super::get_pawn_moves_and_attacks(board, Color::Black, "f7".into())
+                .collect::<Vec<Position>>(),
+            vec![]
+        );
+
+        // c3 can capture left, right, or single-step
+        assert_eq!(
+            super::get_pawn_moves_and_attacks(board, Color::Black, "c3".into())
+                .collect::<Vec<Position>>(),
+            vec![
+                Position::from("b2"),
+                Position::from("c2"),
+                Position::from("d2")
+            ]
+        );
+
+        // b3 can capture left only
+        assert_eq!(
+            super::get_pawn_moves_and_attacks(board, Color::Black, "b3".into())
+                .collect::<Vec<Position>>(),
+            vec![Position::from("a2")]
+        );
+
+        // a3 can capture right only
+        assert_eq!(
+            super::get_pawn_moves_and_attacks(board, Color::Black, "a3".into())
+                .collect::<Vec<Position>>(),
+            vec![Position::from("b2")]
         );
     }
 }

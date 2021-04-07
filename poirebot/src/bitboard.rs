@@ -1,8 +1,10 @@
 use std::fmt;
-use std::ops::{BitAnd, BitAndAssign, BitOr, BitOrAssign, BitXor, BitXorAssign, Mul, Not};
+use std::iter::FromIterator;
+use std::ops::{
+    BitAnd, BitAndAssign, BitOr, BitOrAssign, BitXor, BitXorAssign, Mul, Not, Shl, Shr,
+};
 
 use crate::game::position::Position;
-use std::iter::FromIterator;
 
 #[derive(PartialEq, Eq, PartialOrd, Clone, Copy, Debug, Default, Hash)]
 pub struct BitBoard(pub u64);
@@ -212,6 +214,38 @@ impl Not for &BitBoard {
     #[inline]
     fn not(self) -> BitBoard {
         BitBoard(!self.0)
+    }
+}
+
+impl Shl<u8> for BitBoard {
+    type Output = BitBoard;
+
+    fn shl(self, rhs: u8) -> BitBoard {
+        BitBoard(self.0 << rhs)
+    }
+}
+
+impl Shl<u8> for &BitBoard {
+    type Output = BitBoard;
+
+    fn shl(self, rhs: u8) -> BitBoard {
+        BitBoard(self.0 << rhs)
+    }
+}
+
+impl Shr<u8> for BitBoard {
+    type Output = BitBoard;
+
+    fn shr(self, rhs: u8) -> BitBoard {
+        BitBoard(self.0 >> rhs)
+    }
+}
+
+impl Shr<u8> for &BitBoard {
+    type Output = BitBoard;
+
+    fn shr(self, rhs: u8) -> BitBoard {
+        BitBoard(self.0 >> rhs)
     }
 }
 

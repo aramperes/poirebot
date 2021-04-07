@@ -270,7 +270,7 @@ impl Board {
                     // When a pawn does a two-step, it becomes the en passant target
                     // (the position set is the one 'behind' the pawn that moved)
                     if is_pawn_two_step(&m) {
-                        side.en_passant_target |= BitBoard::from(destination.backwards(color, 1));
+                        side.en_passant_target = BitBoard::from(destination.backwards(color, 1));
                     }
                 });
             }
@@ -415,10 +415,10 @@ impl Board {
         self.black.refresh();
     }
 
-    pub fn get_side(&self, color: Color) -> BoardSide {
+    pub fn get_side(&self, color: Color) -> &BoardSide {
         match color {
-            Color::White => self.white,
-            Color::Black => self.black,
+            Color::White => &self.white,
+            Color::Black => &self.black,
         }
     }
 
