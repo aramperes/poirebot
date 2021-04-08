@@ -3,6 +3,10 @@ use crate::game::pieces::sliding::get_sliding_straight_moves;
 use crate::game::pieces::Color;
 use crate::game::Board;
 
+/// Generates a bitboard with the moves that can be performed by the rooks in the given bitboard.
+///
+/// Note that multiple rooks can be passed in the bitboard; to get the moves for individual rooks,
+/// iterate over the rooks and call this function with the singular bitboard for each rook.
 pub fn get_rook_sliding_moves(board: &Board, color: Color, origin: &BitBoard) -> BitBoard {
     get_sliding_straight_moves(&board, color, &origin)
 }

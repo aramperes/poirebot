@@ -101,7 +101,7 @@ impl Brain {
 /// the current board as it allows recursive-ness.
 fn list_potential_moves(board: Board, color: Color) -> BTreeSet<BrainMove> {
     let side = board.get_side(color);
-    ["pawn", "rook:sliding"]
+    ["pawn", "rook:sliding", "bishop:sliding"]
         .iter()
         .map(|task| match *task {
             "pawn" => side
@@ -114,12 +114,15 @@ fn list_potential_moves(board: Board, color: Color) -> BTreeSet<BrainMove> {
             "rook:sliding" => side
                 .rooks
                 .flat_map(|rook| {
-                    pieces::sliding::get_sliding_straight_moves(
-                        &board,
-                        color,
-                        &BitBoard::from(rook),
-                    )
-                    .map(move |dest| Move::from((rook, dest)))
+                    pieces::rook::get_rook_sliding_moves(&board, color, &BitBoard::from(rook))
+                        .map(move |dest| Move::from((rook, dest)))
+                })
+                .collect(),
+            "bishop:sliding" => side
+                .bishops
+                .flat_map(|bishop| {
+                    pieces::bishop::get_bishop_sliding_moves(&board, color, &BitBoard::from(bishop))
+                        .map(move |dest| Move::from((bishop, dest)))
                 })
                 .collect(),
             _ => Vec::with_capacity(0),

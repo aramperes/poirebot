@@ -1,12 +1,13 @@
-pub mod pawn;
-pub mod rook;
-pub mod sliding;
-
 use std::fmt::Debug;
 
 use crate::bitboard::BitBoard;
 use crate::game::position::Position;
 use crate::game::Move;
+
+pub mod bishop;
+pub mod pawn;
+pub mod rook;
+pub mod sliding;
 
 /// The A file.
 #[allow(dead_code)]
@@ -43,7 +44,7 @@ pub const FILE_H: BitBoard = BitBoard(FILE_A.0 << 7);
 
 /// All the files.
 #[allow(dead_code)]
-pub const FILES: [BitBoard; 8] = [
+pub const FILES: &[BitBoard; 8] = &[
     FILE_A, FILE_B, FILE_C, FILE_D, FILE_E, FILE_F, FILE_G, FILE_H,
 ];
 
@@ -81,17 +82,87 @@ pub const RANK_8: BitBoard = BitBoard(RANK_7.0 << 8);
 
 /// All the ranks.
 #[allow(dead_code)]
-pub const RANKS: [BitBoard; 8] = [
+pub const RANKS: &[BitBoard; 8] = &[
     RANK_1, RANK_2, RANK_3, RANK_4, RANK_5, RANK_6, RANK_7, RANK_8,
 ];
 
 /// The main diagonal, from a1 to h8
 #[allow(dead_code)]
-const MAIN_DIAGONAL: BitBoard = BitBoard(9241421688590303745);
+pub const MAIN_DIAGONAL: BitBoard = BitBoard(9241421688590303745);
+
+/// The 15 diagonals parallel to the main diagonal. Starts from the bottom to the top,
+/// with the main diagonal in the middle:
+///   - index 0: h1
+///   - index 1: g1 -> h2
+///     ...
+///   - index 7: a1 to h8 (main diagonal)
+///   - index 8: a2 to g8
+///     ...
+///   - index 14: a8
+/// A trick to get the diagonal matching a tile is to use the index `7 + rank - file` (0-indexed)
+/// Or just use the provided `get_main_diagonal`.
+#[allow(dead_code)]
+pub const DIAGONALS: &[BitBoard; 15] = &[
+    BitBoard(MAIN_DIAGONAL.0 >> (7 * 8)),
+    BitBoard(MAIN_DIAGONAL.0 >> (6 * 8)),
+    BitBoard(MAIN_DIAGONAL.0 >> (5 * 8)),
+    BitBoard(MAIN_DIAGONAL.0 >> (4 * 8)),
+    BitBoard(MAIN_DIAGONAL.0 >> (3 * 8)),
+    BitBoard(MAIN_DIAGONAL.0 >> (2 * 8)),
+    BitBoard(MAIN_DIAGONAL.0 >> 8),
+    MAIN_DIAGONAL,
+    BitBoard(MAIN_DIAGONAL.0 << 8),
+    BitBoard(MAIN_DIAGONAL.0 << (2 * 8)),
+    BitBoard(MAIN_DIAGONAL.0 << (3 * 8)),
+    BitBoard(MAIN_DIAGONAL.0 << (4 * 8)),
+    BitBoard(MAIN_DIAGONAL.0 << (5 * 8)),
+    BitBoard(MAIN_DIAGONAL.0 << (6 * 8)),
+    BitBoard(MAIN_DIAGONAL.0 << (7 * 8)),
+];
 
 /// The anti-diagonal, from a8 to h1
 #[allow(dead_code)]
-const ANTI_DIAGONAL: BitBoard = BitBoard(72624976668147840);
+pub const ANTI_DIAGONAL: BitBoard = BitBoard(72624976668147840);
+
+/// The 15 diagonals parallel to the anti diagonal. Starts from the bottom to the top,
+/// with the main diagonal in the middle:
+///   - index 0: a1
+///   - index 1: a2 -> b1
+///     ...
+///   - index 7: a8 to h1 (anti diagonal)
+///   - index 8: a2 to g8
+///     ...
+///   - index 14: h8
+/// A trick to get the diagonal matching a tile is to use the index `rank + file` (0-indexed)
+/// Or just use the provided `get_anti_diagonal`.
+#[allow(dead_code)]
+pub const ANTI_DIAGONALS: &[BitBoard; 15] = &[
+    BitBoard(ANTI_DIAGONAL.0 >> (7 * 8)),
+    BitBoard(ANTI_DIAGONAL.0 >> (6 * 8)),
+    BitBoard(ANTI_DIAGONAL.0 >> (5 * 8)),
+    BitBoard(ANTI_DIAGONAL.0 >> (4 * 8)),
+    BitBoard(ANTI_DIAGONAL.0 >> (3 * 8)),
+    BitBoard(ANTI_DIAGONAL.0 >> (2 * 8)),
+    BitBoard(ANTI_DIAGONAL.0 >> 8),
+    ANTI_DIAGONAL,
+    BitBoard(ANTI_DIAGONAL.0 << 8),
+    BitBoard(ANTI_DIAGONAL.0 << (2 * 8)),
+    BitBoard(ANTI_DIAGONAL.0 << (3 * 8)),
+    BitBoard(ANTI_DIAGONAL.0 << (4 * 8)),
+    BitBoard(ANTI_DIAGONAL.0 << (5 * 8)),
+    BitBoard(ANTI_DIAGONAL.0 << (6 * 8)),
+    BitBoard(ANTI_DIAGONAL.0 << (7 * 8)),
+];
+
+/// Get the main-diagonal containing the given tile (file and rank, 0-indexed).
+pub const fn get_main_diagonal(pos: &Position) -> &'static BitBoard {
+    &DIAGONALS[(7 + pos.rank_y - pos.file_x) as usize]
+}
+
+/// Get the antidiagonal containing the given tile (file and rank, 0-indexed).
+pub const fn get_anti_diagonal(pos: &Position) -> &'static BitBoard {
+    &ANTI_DIAGONALS[(pos.file_x + pos.rank_y) as usize]
+}
 
 /// A chess piece.
 #[derive(Debug, Clone, Copy, Eq, PartialEq)]

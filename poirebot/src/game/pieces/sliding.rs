@@ -1,7 +1,6 @@
 use crate::bitboard::{BitBoard, EMPTY};
-use crate::game::pieces::{Color, FILES, MAIN_DIAGONAL, RANKS};
-use crate::game::position::Position;
-use crate::game::{Board, Move, Promotion};
+use crate::game::pieces::{get_anti_diagonal, get_main_diagonal, Color, FILES, RANKS};
+use crate::game::Board;
 
 /// Generates a bitboard with the moves that can be performed by the sliding pieces in the given bitboard, horizontally and vertically.
 ///
@@ -19,8 +18,8 @@ pub fn get_sliding_straight_moves(board: &Board, color: Color, origins: &BitBoar
     // The formula is o^(o-2r), and only applies to "positive rays" (moves with positive rank and/or file difference)
     // NB: The formula only works on bitboards with 1 square, so we must do 1 piece at a time
     for origin in *origins {
-        let file_mask: BitBoard = FILES[origin.file_x as usize];
-        let rank_mask: BitBoard = RANKS[origin.rank_y as usize];
+        let file_mask = &FILES[origin.file_x as usize];
+        let rank_mask = &RANKS[origin.rank_y as usize];
 
         // Start with North (positive vertical)
         // First we find the potential blockers on the same file (vertical)
@@ -67,97 +66,55 @@ pub fn get_sliding_straight_moves(board: &Board, color: Color, origins: &BitBoar
     result
 }
 
-/// Generates moves that slide towards parallel to (or on) the main diagonal.
-/// Also returns the worth of the piece being taken, if any.
-pub fn get_sliding_main_diagonal_moves(
-    board: Board,
-    color: Color,
-    origin: Position,
-) -> Vec<(Move, u8)> {
-    let real_origin = origin;
-    let origin_bb = BitBoard::from(origin);
+/// Generates a bitboard with the diagonal moves that can be performed by the sliding pieces in the given bitboard.
+///
+/// Note that multiple pieces can be passed in the bitboard; to get the moves for individual pieces,
+/// iterate over the pieces and call this function with the singular bitboard for each piece.
+pub fn get_sliding_diagonal_moves(board: &Board, color: Color, origins: &BitBoard) -> BitBoard {
+    let mut result = EMPTY;
+    let all_pieces = board.white.pieces | board.black.pieces;
+    let side = board.get_side(color);
+    let own_pieces = side.pieces;
 
-    let all_pieces = board.black.pieces | board.white.pieces;
-    let own_pieces = board.get_side(color).pieces;
+    // From a high-level, the operation here is to subtract the piece from the occupancy
+    // The formula is o^(o-2r), and only applies to "positive rays" (moves with positive rank and/or file difference)
+    // See the `get_sliding_straight_moves` function above for details about the formula
+    // The difference with diagonals is simply the masks, which are based on the main diagonal and the anti-diagonal
+    // NB: The formula only works on bitboards with 1 square, so we must do 1 piece at a time
+    for origin in *origins {
+        let main_mask = get_main_diagonal(&origin);
+        let anti_mask = get_anti_diagonal(&origin);
 
-    let mut moves = Vec::new();
+        // Start with the positive-main diagonal (North-East)
+        let blockers = all_pieces & main_mask;
+        let square_board = BitBoard::from(origin);
+        let difference = blockers - (square_board * 2);
+        result |= (all_pieces ^ difference) & main_mask & !own_pieces;
 
-    // Get the diagonal parallel to the main diagonal
-    let diagonal_diff = (origin.rank_y as i32 - origin.file_x as i32) * 8;
-    let diagonal_mask = if diagonal_diff > 0 {
-        BitBoard(MAIN_DIAGONAL.0 << diagonal_diff as u8)
-    } else {
-        BitBoard(MAIN_DIAGONAL.0 >> (-diagonal_diff) as u8)
-    };
+        // Then positive-anti diagonal (North-West)
+        {
+            let blockers = all_pieces & anti_mask;
+            let difference = blockers - (square_board * 2);
+            result |= (all_pieces ^ difference) & anti_mask & !own_pieces;
 
-    if real_origin.rank_y != 7 {
-        let blockers = all_pieces & diagonal_mask;
-        let difference = BitBoard(
-            blockers
-                .0
-                .wrapping_sub(BitBoard(origin_bb.0.wrapping_mul(2)).0),
-        );
-        let changed = difference ^ all_pieces;
-        let attacks = changed & diagonal_mask & !own_pieces;
-        let mut attacks = attacks;
-        while attacks.popcnt() > 0 {
-            let attack = attacks.next().unwrap();
-            let attack = BitBoard::from(attack).to_position();
-            if attacks.popcnt() == 0 {
-                let val = board.get_piece_value(attack);
-                moves.push((Move(real_origin, attack, Promotion::None), val));
-            } else {
-                moves.push((Move(real_origin, attack, Promotion::None), 0));
-            }
+            // Then negative-anti diagonal (South-East)
+            let blockers = blockers.swap();
+            let all_pieces = all_pieces.swap();
+            let own_pieces = own_pieces.swap();
+            let square_board = square_board.swap();
+
+            let difference = blockers - (square_board * 2);
+            result |= ((all_pieces ^ difference) & anti_mask.swap() & !own_pieces).swap();
         }
+
+        // Then negative-main diagonal (South-West)
+        let blockers = blockers.swap();
+        let all_pieces = all_pieces.swap();
+        let own_pieces = own_pieces.swap();
+        let square_board = square_board.swap();
+
+        let difference = blockers - (square_board * 2);
+        result |= ((all_pieces ^ difference) & main_mask.swap() & !own_pieces).swap();
     }
-
-    if real_origin.rank_y != 0 {
-        let all_pieces = all_pieces.rotate();
-        let own_pieces = own_pieces.rotate();
-        let diagonal_mask = diagonal_mask.rotate();
-        let blockers = all_pieces & diagonal_mask;
-        let origin_bb = origin_bb.rotate();
-
-        let difference = BitBoard(
-            blockers
-                .0
-                .wrapping_sub(BitBoard(origin_bb.0.wrapping_mul(2)).0),
-        );
-        let changed = difference ^ all_pieces;
-        let attacks = changed & diagonal_mask & !own_pieces;
-        let mut attacks = attacks;
-        while attacks.popcnt() > 0 {
-            let attack = attacks.next().unwrap();
-            let attack = BitBoard::from(attack).rotate().to_position();
-            if attacks.popcnt() == 0 {
-                let val = board.get_piece_value(attack);
-                moves.push((Move(real_origin, attack, Promotion::None), val));
-            } else {
-                moves.push((Move(real_origin, attack, Promotion::None), 0));
-            }
-        }
-    }
-
-    moves
-}
-
-#[cfg(test)]
-mod tests {
-    use crate::game::pieces::Color;
-    use crate::game::{Board, Move};
-
-    #[test]
-    fn test_sliding_main_diagonal_north_moves() {
-        let board = Board::from_fen("7P/6P1/5P2/4P1R1/3P4/2P1b3/1P6/P1r5 w - - 0 1").unwrap();
-        let moves = super::get_sliding_main_diagonal_moves(board, Color::Black, "e3".into());
-        assert_eq!(
-            moves,
-            vec![
-                (Move::from_pure_notation("e3f4"), 0),
-                (Move::from_pure_notation("e3g5"), 5),
-                (Move::from_pure_notation("e3d2"), 0),
-            ]
-        );
-    }
+    result
 }
