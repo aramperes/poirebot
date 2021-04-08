@@ -101,66 +101,79 @@ impl Brain {
 /// the current board as it allows recursive-ness.
 fn list_potential_moves(board: Board, color: Color) -> BTreeSet<BrainMove> {
     let side = board.get_side(color);
-    ["pawn", "rook:sliding", "bishop:sliding", "queen:sliding"]
-        .iter()
-        .map(|task| match *task {
-            "pawn" => side
-                .pawns
-                .flat_map(|pawn| {
-                    pieces::pawn::get_pawn_moves_and_attacks(&board, color, &BitBoard::from(pawn))
-                        .map(move |dest| Move::from((pawn, dest)).with_promotion(promote(dest)))
-                })
-                .collect(),
-            "rook:sliding" => side
-                .rooks
-                .flat_map(|rook| {
-                    pieces::rook::get_rook_sliding_moves(&board, color, &BitBoard::from(rook))
-                        .map(move |dest| Move::from((rook, dest)))
-                })
-                .collect(),
-            "bishop:sliding" => side
-                .bishops
-                .flat_map(|bishop| {
-                    pieces::bishop::get_bishop_sliding_moves(&board, color, &BitBoard::from(bishop))
-                        .map(move |dest| Move::from((bishop, dest)))
-                })
-                .collect(),
-            "queen:sliding" => side
-                .queens
-                .flat_map(|queen| {
-                    pieces::queen::get_queen_sliding_moves(&board, color, &BitBoard::from(queen))
-                        .map(move |dest| Move::from((queen, dest)))
-                })
-                .collect(),
-            _ => Vec::with_capacity(0),
-        })
-        .map(|moves| {
-            // Score the moves according to board state
-            moves.into_iter().map(|m| {
-                let mut result = board;
-                result.apply_move(m);
-
-                let mut reward = 0.0;
-                let risk = 0.0;
-
-                if m.2 == Promotion::Queen {
-                    reward += 8.0;
-                }
-
-                // TODO: Adjust risk based on board result (self-check, self-fork, etc.)
-                // TODO: Adjust reward based on potential future attacks (forks, etc.)
-                BrainMove {
-                    m,
-                    risk,
-                    reward,
-                    result,
-                }
+    [
+        "pawn",
+        "rook:sliding",
+        "bishop:sliding",
+        "queen:sliding",
+        "king:step",
+    ]
+    .iter()
+    .map(|task| match *task {
+        "pawn" => side
+            .pawns
+            .flat_map(|pawn| {
+                pieces::pawn::get_pawn_moves_and_attacks(&board, color, &BitBoard::from(pawn))
+                    .map(move |dest| Move::from((pawn, dest)).with_promotion(promote(dest)))
             })
+            .collect(),
+        "rook:sliding" => side
+            .rooks
+            .flat_map(|rook| {
+                pieces::rook::get_rook_sliding_moves(&board, color, &BitBoard::from(rook))
+                    .map(move |dest| Move::from((rook, dest)))
+            })
+            .collect(),
+        "bishop:sliding" => side
+            .bishops
+            .flat_map(|bishop| {
+                pieces::bishop::get_bishop_sliding_moves(&board, color, &BitBoard::from(bishop))
+                    .map(move |dest| Move::from((bishop, dest)))
+            })
+            .collect(),
+        "queen:sliding" => side
+            .queens
+            .flat_map(|queen| {
+                pieces::queen::get_queen_sliding_moves(&board, color, &BitBoard::from(queen))
+                    .map(move |dest| Move::from((queen, dest)))
+            })
+            .collect(),
+        "king:step" => side
+            .king
+            .flat_map(|king| {
+                pieces::king::get_king_steps(&board, color, king)
+                    .map(move |dest| Move::from((king, dest)))
+            })
+            .collect(),
+        _ => Vec::with_capacity(0),
+    })
+    .map(|moves| {
+        // Score the moves according to board state
+        moves.into_iter().map(|m| {
+            let mut result = board;
+            result.apply_move(m);
+
+            let mut reward = 0.0;
+            let risk = 0.0;
+
+            if m.2 == Promotion::Queen {
+                reward += 8.0;
+            }
+
+            // TODO: Adjust risk based on board result (self-check, self-fork, etc.)
+            // TODO: Adjust reward based on potential future attacks (forks, etc.)
+            BrainMove {
+                m,
+                risk,
+                reward,
+                result,
+            }
         })
-        .fold(BTreeSet::new(), |mut sum, val| {
-            sum.extend(val);
-            sum
-        })
+    })
+    .fold(BTreeSet::new(), |mut sum, val| {
+        sum.extend(val);
+        sum
+    })
 }
 
 /// Selects the promotion to get based on destination position.

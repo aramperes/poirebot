@@ -5,6 +5,7 @@ use crate::game::position::Position;
 use crate::game::Move;
 
 pub mod bishop;
+pub mod king;
 pub mod pawn;
 pub mod queen;
 pub mod rook;
