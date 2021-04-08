@@ -176,16 +176,16 @@ impl BoardSide {
     pub fn flip(&self) -> Self {
         Self {
             color: self.color.opposite(),
-            pawns: self.pawns.reverse_colors(),
-            rooks: self.rooks.reverse_colors(),
-            knights: self.knights.reverse_colors(),
-            bishops: self.bishops.reverse_colors(),
-            queens: self.queens.reverse_colors(),
-            king: self.king.reverse_colors(),
-            unmoved_rooks: self.unmoved_rooks.reverse_colors(),
-            pieces: self.pieces.reverse_colors(),
-            attacks: self.attacks.reverse_colors(),
-            en_passant_target: self.en_passant_target.reverse_colors(),
+            pawns: self.pawns.swap(),
+            rooks: self.rooks.swap(),
+            knights: self.knights.swap(),
+            bishops: self.bishops.swap(),
+            queens: self.queens.swap(),
+            king: self.king.swap(),
+            unmoved_rooks: self.unmoved_rooks.swap(),
+            pieces: self.pieces.swap(),
+            attacks: self.attacks.swap(),
+            en_passant_target: self.en_passant_target.swap(),
             king_has_moved: self.king_has_moved,
         }
     }

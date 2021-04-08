@@ -1,8 +1,6 @@
 use std::fmt;
 use std::iter::FromIterator;
-use std::ops::{
-    BitAnd, BitAndAssign, BitOr, BitOrAssign, BitXor, BitXorAssign, Mul, Not, Shl, Shr,
-};
+use std::ops::{BitAnd, BitAndAssign, BitOr, BitOrAssign, BitXor, BitXorAssign, Mul, Not, Shl, Shr, Sub};
 
 use crate::game::position::Position;
 
@@ -199,6 +197,60 @@ impl Mul<BitBoard> for &BitBoard {
     }
 }
 
+impl Mul<u64> for BitBoard {
+    type Output = BitBoard;
+
+    #[inline]
+    fn mul(self, other: u64) -> BitBoard {
+        BitBoard(self.0.wrapping_mul(other))
+    }
+}
+
+impl Mul<u64> for &BitBoard {
+    type Output = BitBoard;
+
+    #[inline]
+    fn mul(self, other: u64) -> BitBoard {
+        BitBoard(self.0.wrapping_mul(other))
+    }
+}
+
+impl Sub for BitBoard {
+    type Output = BitBoard;
+
+    #[inline]
+    fn sub(self, other: BitBoard) -> BitBoard {
+        BitBoard(self.0.wrapping_sub(other.0))
+    }
+}
+
+impl Sub for &BitBoard {
+    type Output = BitBoard;
+
+    #[inline]
+    fn sub(self, other: &BitBoard) -> BitBoard {
+        BitBoard(self.0.wrapping_sub(other.0))
+    }
+}
+
+impl Sub<&BitBoard> for BitBoard {
+    type Output = BitBoard;
+
+    #[inline]
+    fn sub(self, other: &BitBoard) -> BitBoard {
+        BitBoard(self.0.wrapping_sub(other.0))
+    }
+}
+
+impl Sub<BitBoard> for &BitBoard {
+    type Output = BitBoard;
+
+    #[inline]
+    fn sub(self, other: BitBoard) -> BitBoard {
+        BitBoard(self.0.wrapping_sub(other.0))
+    }
+}
+
 impl Not for BitBoard {
     type Output = BitBoard;
 
@@ -300,7 +352,7 @@ impl BitBoard {
 
     /// Reverse this `BitBoard`.  Look at it from the opponents perspective.
     #[inline]
-    pub fn reverse_colors(&self) -> BitBoard {
+    pub fn swap(&self) -> BitBoard {
         BitBoard(self.0.swap_bytes())
     }
 
@@ -320,7 +372,7 @@ impl BitBoard {
     /// Mirror this `Bitboard` horizontally (left becomes right) and flip the colors.
     #[inline]
     pub fn rotate(&self) -> BitBoard {
-        self.reverse_colors().mirror_horizontally()
+        self.swap().mirror_horizontally()
     }
 
     /// Flip this `Bitboard` about the diagonal.

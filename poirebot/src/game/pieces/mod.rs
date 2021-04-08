@@ -85,6 +85,14 @@ pub const RANKS: [BitBoard; 8] = [
     RANK_1, RANK_2, RANK_3, RANK_4, RANK_5, RANK_6, RANK_7, RANK_8,
 ];
 
+/// The main diagonal, from a1 to h8
+#[allow(dead_code)]
+const MAIN_DIAGONAL: BitBoard = BitBoard(9241421688590303745);
+
+/// The anti-diagonal, from a8 to h1
+#[allow(dead_code)]
+const ANTI_DIAGONAL: BitBoard = BitBoard(72624976668147840);
+
 /// A chess piece.
 #[derive(Debug, Clone, Copy, Eq, PartialEq)]
 pub enum Pieces {

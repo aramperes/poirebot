@@ -111,9 +111,16 @@ fn list_potential_moves(board: Board, color: Color) -> BTreeSet<BrainMove> {
                         .map(move |dest| Move::from((pawn, dest)).with_promotion(promote(dest)))
                 })
                 .collect(),
-            "rook:sliding" => pieces::rook::get_rook_sliding_moves(board, color)
-                .into_iter()
-                .map(|(m, _)| m)
+            "rook:sliding" => side
+                .rooks
+                .flat_map(|rook| {
+                    pieces::sliding::get_sliding_straight_moves(
+                        &board,
+                        color,
+                        &BitBoard::from(rook),
+                    )
+                    .map(move |dest| Move::from((rook, dest)))
+                })
                 .collect(),
             _ => Vec::with_capacity(0),
         })

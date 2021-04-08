@@ -25,7 +25,7 @@ pub fn get_pawn_moves_and_attacks(board: &Board, color: Color, origin: &BitBoard
         // Left-side attacks (lshift by 7 bits for: rank +1, file -1).
         // 'A' file is excluded to prevent underflow
         // Also checks possibility of en-passant
-        result |= ((origin & !FILE_A) << 7) & capturable_pieces;
+        result |= (origin & !FILE_A) << 7 & capturable_pieces;
 
         // Double steps
         // 1. Only include pawns in rank 2
@@ -46,7 +46,7 @@ pub fn get_pawn_moves_and_attacks(board: &Board, color: Color, origin: &BitBoard
         // Left-side attacks (rshift by 9 bits for: rank -1, file -1).
         // 'A' file is excluded to prevent underflow
         // Also checks possibility of en-passant
-        result |= ((origin & !FILE_A) >> 9) & capturable_pieces;
+        result |= (origin & !FILE_A) >> 9 & capturable_pieces;
 
         // Double steps
         // 1. Only include pawns in rank 7
