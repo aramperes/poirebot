@@ -447,6 +447,16 @@ impl FromIterator<Position> for BitBoard {
     }
 }
 
+impl FromIterator<BitBoard> for BitBoard {
+    fn from_iter<T: IntoIterator<Item = BitBoard>>(iter: T) -> Self {
+        let mut board = EMPTY;
+        for b in iter {
+            board |= b;
+        }
+        board
+    }
+}
+
 /// For the `BitBoard`, iterate over every `Position` set.
 impl Iterator for BitBoard {
     type Item = Position;

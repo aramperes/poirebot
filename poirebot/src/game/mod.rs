@@ -55,7 +55,7 @@ impl Move {
     pub fn from_pure_notation(notation: &str) -> Self {
         let origin = notation.chars().take(2).collect::<String>();
         let destination = notation.chars().skip(2).take(2).collect::<String>();
-        let promotion = notation.chars().skip(3).take(1).collect::<String>();
+        let promotion = notation.chars().skip(4).take(1).collect::<String>();
 
         Move(origin.into(), destination.into(), promotion.into())
     }
@@ -453,6 +453,33 @@ impl Board {
 
         v.join("\n")
     }
+
+    /// Returns a bitboard of tiles for all potential moves (destinations) by the given side.
+    ///
+    /// Note: this does not check whether the move is 100% legal (could cause a self-check).
+    pub fn get_all_moves(&self, color: Color) -> BitBoard {
+        let side = self.get_side(color);
+        let pawns = pieces::pawn::get_pawn_moves_and_attacks(&self, color, &side.pawns);
+        let rooks = pieces::rook::get_rook_sliding_moves(&self, color, &side.rooks);
+        let knights = side
+            .knights
+            .map(|knight| pieces::knight::get_knight_moves(&self, color, knight))
+            .collect::<BitBoard>();
+        let bishops = pieces::bishop::get_bishop_sliding_moves(&self, color, &side.bishops);
+        let queens = pieces::queen::get_queen_sliding_moves(&self, color, &side.queens);
+        let king = side
+            .king
+            .map(|king| pieces::king::get_king_steps(&self, color, king))
+            .collect::<BitBoard>();
+
+        pawns | rooks | knights | bishops | queens | king
+    }
+
+    /// Returns whether the given side is in check.
+    pub fn is_in_check(&self, color: Color) -> bool {
+        let side = self.get_side(color);
+        (self.get_all_moves(color.opposite()) & side.king).popcnt() != 0
+    }
 }
 
 impl Default for Board {
@@ -686,5 +713,21 @@ mod tests {
             Some(Pieces::Pawn(Color::White, "b6".into()))
         );
         assert_eq!(board.get_piece("b5".into()), None);
+    }
+
+    #[test]
+    fn test_move_from_pure_notation() {
+        let m = "c7d8q";
+        assert_eq!(
+            Move::from_pure_notation(m),
+            Move("c7".into(), "d8".into(), Promotion::Queen)
+        );
+    }
+
+    #[test]
+    fn test_is_in_check() {
+        let board =
+            Board::from_fen("rnb1k1nr/pp1p1ppp/P1PPP3/8/4P3/8/7b/3q1K2 w kq - 0 1").unwrap();
+        assert!(board.is_in_check(Color::White));
     }
 }

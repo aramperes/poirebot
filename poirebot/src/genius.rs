@@ -26,11 +26,10 @@ pub struct Brain {
 struct BrainMove {
     /// The move being completed.
     m: Move,
-    /// A 'risk' heuristic on the move.
-    risk: f32,
-    /// A 'reward' heuristic on the move. A very high reward is capturing a high-score piece like a queen or rook.
-    /// Forks are also very high-reward.
-    reward: f32,
+    /// MiniMax 'min' heuristic.
+    min: f32,
+    /// MiniMax 'max' heuristic.
+    max: f32,
     /// Resulting board state.
     result: Board,
 }
@@ -48,8 +47,8 @@ impl PartialOrd for BrainMove {
     fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
         // Play defensively for now
         let defensiveness = 0.7;
-        let score = -(self.reward - defensiveness * self.risk);
-        let other_score = -(other.reward - defensiveness * other.risk);
+        let score = -(self.max - defensiveness * self.min);
+        let other_score = -(other.max - defensiveness * other.min);
         score.partial_cmp(&other_score)
     }
 }
@@ -101,6 +100,10 @@ impl Brain {
 /// Note: lists the moves on the given board. This can be different than
 /// the current board as it allows recursive-ness.
 fn list_potential_moves(board: Board, color: Color) -> BTreeSet<BrainMove> {
+    debug!(
+        "Board before Genius move: \n{}",
+        board.draw_ascii(Color::White)
+    );
     let side = board.get_side(color);
     [
         "pawn",
@@ -111,78 +114,98 @@ fn list_potential_moves(board: Board, color: Color) -> BTreeSet<BrainMove> {
         "king:step",
     ]
     .iter()
-    .map(|task| match *task {
+    .flat_map(|task| match *task {
         "pawn" => side
             .pawns
-            .flat_map(|pawn| {
-                pieces::pawn::get_pawn_moves_and_attacks(&board, color, &BitBoard::from(pawn))
-                    .map(move |dest| Move::from((pawn, dest)).with_promotion(promote(dest)))
+            .map(|pawn| {
+                (
+                    pawn,
+                    pieces::pawn::get_pawn_moves_and_attacks(&board, color, &BitBoard::from(pawn)),
+                    true,
+                )
             })
             .collect(),
         "rook:sliding" => side
             .rooks
-            .flat_map(|rook| {
-                pieces::rook::get_rook_sliding_moves(&board, color, &BitBoard::from(rook))
-                    .map(move |dest| Move::from((rook, dest)))
+            .map(|rook| {
+                (
+                    rook,
+                    pieces::rook::get_rook_sliding_moves(&board, color, &BitBoard::from(rook)),
+                    false,
+                )
             })
             .collect(),
         "knight:step" => side
             .knights
-            .flat_map(|knight| {
-                pieces::knight::get_knight_moves(&board, color, knight)
-                    .map(move |dest| Move::from((knight, dest)))
+            .map(|knight| {
+                (
+                    knight,
+                    pieces::knight::get_knight_moves(&board, color, knight),
+                    false,
+                )
             })
             .collect(),
         "bishop:sliding" => side
             .bishops
-            .flat_map(|bishop| {
-                pieces::bishop::get_bishop_sliding_moves(&board, color, &BitBoard::from(bishop))
-                    .map(move |dest| Move::from((bishop, dest)))
+            .map(|bishop| {
+                (
+                    bishop,
+                    pieces::bishop::get_bishop_sliding_moves(
+                        &board,
+                        color,
+                        &BitBoard::from(bishop),
+                    ),
+                    false,
+                )
             })
             .collect(),
         "queen:sliding" => side
             .queens
-            .flat_map(|queen| {
-                pieces::queen::get_queen_sliding_moves(&board, color, &BitBoard::from(queen))
-                    .map(move |dest| Move::from((queen, dest)))
+            .map(|queen| {
+                (
+                    queen,
+                    pieces::queen::get_queen_sliding_moves(&board, color, &BitBoard::from(queen)),
+                    false,
+                )
             })
             .collect(),
         "king:step" => side
             .king
-            .flat_map(|king| {
-                pieces::king::get_king_steps(&board, color, king)
-                    .map(move |dest| Move::from((king, dest)))
+            .map(|king| {
+                (
+                    king,
+                    pieces::king::get_king_steps(&board, color, king),
+                    false,
+                )
             })
             .collect(),
         _ => Vec::with_capacity(0),
     })
-    .map(|moves| {
-        // Score the moves according to board state
-        moves.into_iter().map(|m| {
-            let mut result = board;
-            result.apply_move(m);
-
-            let mut reward = 0.0;
-            let risk = 0.0;
-
-            if m.2 == Promotion::Queen {
-                reward += 8.0;
-            }
-
-            // TODO: Adjust risk based on board result (self-check, self-fork, etc.)
-            // TODO: Adjust reward based on potential future attacks (forks, etc.)
-            BrainMove {
-                m,
-                risk,
-                reward,
-                result,
+    .flat_map(|(origin, moves, can_promote)| {
+        moves.map(move |destination| {
+            if can_promote {
+                Move(origin, destination, promote(destination))
+            } else {
+                Move::from((origin, destination))
             }
         })
     })
-    .fold(BTreeSet::new(), |mut sum, val| {
-        sum.extend(val);
-        sum
+    .map(|m| {
+        let mut result = board;
+        result.apply_move(m);
+        (m, result)
     })
+    .filter(|(_, result)| !result.is_in_check(color))
+    .map(|(m, result)| {
+        // TODO: Evaluate minimax
+        BrainMove {
+            result,
+            min: 0.0,
+            max: 1.0,
+            m,
+        }
+    })
+    .collect()
 }
 
 /// Selects the promotion to get based on destination position.
