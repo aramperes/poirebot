@@ -73,8 +73,8 @@ purposes:
 
 ## Move Generation
 
-poirebot is pretty dumb right now. It moves a random pawn, and if there is something to capture with a pawn, it will do
-so. If poirebot errors or accidentally generates an illegal move, it will forfeit the match.
+poirebot does not have a *functioning brain* right now. The current goal is to be able to generate all potential moves,
+and later use some flavor of the MiniMax algorithm.
 
 ## Dependencies
 
