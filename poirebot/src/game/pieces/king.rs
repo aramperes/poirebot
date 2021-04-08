@@ -25,6 +25,14 @@ const fn compile_king_moves() -> [BitBoard; 64] {
     let mut moves: [BitBoard; 64] = [BitBoard(0); 64];
     let mut i = 0usize;
     loop {
+        // Generates the 64 possible positions for a king, with the surrounding steps
+        // To generate the steps, it does the following bitwise operation:
+        // (file | file-1 | file+1) & (rank | rank-1 | rank+1) &!center
+        // ... where file-1 is the file directly West of the current one, if any
+        // ... where file+1 is the file directly East of the current one, if any
+        // ... where rank-1 is the rank directly South of the current one, if any
+        // ... where rank+1 is the rank directly North of the current one, if any
+
         let file = i % 8_usize;
         let rank = i / 8_usize;
         let center = 1u64 << i;

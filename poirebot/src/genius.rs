@@ -1,3 +1,6 @@
+use std::cmp::Ordering;
+use std::collections::BTreeSet;
+
 use tokio::sync::oneshot;
 
 use crate::bitboard::BitBoard;
@@ -5,8 +8,6 @@ use crate::game::pieces;
 use crate::game::pieces::Color;
 use crate::game::position::Position;
 use crate::game::{Board, Move, Promotion};
-use std::cmp::Ordering;
-use std::collections::BTreeSet;
 
 #[derive(Debug, Clone, Copy)]
 pub struct Brain {
@@ -104,6 +105,7 @@ fn list_potential_moves(board: Board, color: Color) -> BTreeSet<BrainMove> {
     [
         "pawn",
         "rook:sliding",
+        "knight:step",
         "bishop:sliding",
         "queen:sliding",
         "king:step",
@@ -122,6 +124,13 @@ fn list_potential_moves(board: Board, color: Color) -> BTreeSet<BrainMove> {
             .flat_map(|rook| {
                 pieces::rook::get_rook_sliding_moves(&board, color, &BitBoard::from(rook))
                     .map(move |dest| Move::from((rook, dest)))
+            })
+            .collect(),
+        "knight:step" => side
+            .knights
+            .flat_map(|knight| {
+                pieces::knight::get_knight_moves(&board, color, knight)
+                    .map(move |dest| Move::from((knight, dest)))
             })
             .collect(),
         "bishop:sliding" => side
