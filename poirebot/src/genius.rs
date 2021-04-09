@@ -1,6 +1,9 @@
-use std::cmp::Ordering;
+use std::cmp::{max, min, Ordering};
 use std::collections::BTreeSet;
+use std::ops::Neg;
 
+use itertools::Itertools;
+use rand::{thread_rng, Rng};
 use tokio::sync::oneshot;
 
 use crate::bitboard::BitBoard;
@@ -26,17 +29,13 @@ pub struct Brain {
 struct BrainMove {
     /// The move being completed.
     m: Move,
-    /// MiniMax 'min' heuristic.
-    min: f32,
-    /// MiniMax 'max' heuristic.
-    max: f32,
-    /// Resulting board state.
-    result: Board,
+    /// An estimate of how good the move may be.
+    estimate: f32,
 }
 
 impl PartialEq for BrainMove {
     fn eq(&self, other: &Self) -> bool {
-        self.m == other.m && self.result == other.result
+        self.m == other.m && self.estimate == other.estimate
     }
 }
 
@@ -45,11 +44,7 @@ impl Eq for BrainMove {}
 /// Implements the risk vs. reward scoring.
 impl PartialOrd for BrainMove {
     fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
-        // Play defensively for now
-        let defensiveness = 0.7;
-        let score = -(self.max - defensiveness * self.min);
-        let other_score = -(other.max - defensiveness * other.min);
-        score.partial_cmp(&other_score)
+        self.estimate.partial_cmp(&other.estimate)
     }
 }
 
@@ -58,6 +53,8 @@ impl Ord for BrainMove {
         self.partial_cmp(other).unwrap()
     }
 }
+
+type MoveCollection = Vec<BrainMove>;
 
 impl Brain {
     /// Create a new brain with the given board and color.
@@ -71,14 +68,24 @@ impl Brain {
     }
 
     /// Select a move for the brain.
-    pub fn choose_move(&mut self, sensor: oneshot::Sender<Option<Move>>) {
+    pub fn choose_move(&self, sensor: oneshot::Sender<Option<Move>>) {
         let board = self.board;
-        let color = self.color;
+        let brain_color = self.color;
 
         rayon::spawn(move || {
-            let moves = list_potential_moves(board, color);
-            let m = moves.into_iter().next().map(|m| m.m);
-            sensor.send(m).expect("Failed to dispatch Brain move");
+            let mut rng = thread_rng();
+            let best = negamax(
+                brain_color,
+                board,
+                4,
+                Evaluation::Worst,
+                Evaluation::Best,
+                brain_color,
+                vec![],
+            );
+
+            info!("Best eval: {:?}", best);
+            sensor.send(Some(best.m)).expect("Failed to dispatch Brain move");
         })
     }
 
@@ -95,15 +102,8 @@ impl Brain {
     }
 }
 
-/// List the potential movements and attacks by all pieces.
-///
-/// Note: lists the moves on the given board. This can be different than
-/// the current board as it allows recursive-ness.
-fn list_potential_moves(board: Board, color: Color) -> BTreeSet<BrainMove> {
-    debug!(
-        "Board before Genius move: \n{}",
-        board.draw_ascii(Color::White)
-    );
+/// List the potential movements and attacks by all pieces by the given color in the given board.
+fn list_potential_moves(board: Board, color: Color) -> MoveCollection {
     let side = board.get_side(color);
     [
         "pawn",
@@ -191,21 +191,140 @@ fn list_potential_moves(board: Board, color: Color) -> BTreeSet<BrainMove> {
         })
     })
     .map(|m| {
-        let mut result = board;
-        result.apply_move(m);
-        (m, result)
-    })
-    .filter(|(_, result)| !result.is_in_check(color))
-    .map(|(m, result)| {
-        // TODO: Evaluate minimax
-        BrainMove {
-            result,
-            min: 0.0,
-            max: 1.0,
-            m,
+        let piece_type = board.get_piece(m.0).unwrap();
+        let mut estimate = 0.0;
+        if piece_type.is_pawn() {
+            estimate += 0.5;
         }
+        BrainMove { estimate, m }
     })
-    .collect()
+    .sorted()
+    .rev()
+    .collect::<MoveCollection>()
+}
+
+/// The recursive MiniMax function, with alpha-beta pruning.
+fn negamax(
+    genius_color: Color,
+    board: Board,
+    depth: usize,
+    mut alpha: Evaluation,
+    mut beta: Evaluation,
+    color: Color,
+    previous_moves: Vec<Move>,
+) -> Node {
+    let moves = list_potential_moves(board, color);
+    if depth == 0 || moves.is_empty() {
+        let eval = if moves.is_empty() && color == genius_color {
+            Evaluation::Worst
+        } else if moves.is_empty() && color != genius_color {
+            Evaluation::Best
+        } else {
+            evaluate(genius_color, &board)
+        };
+        info!("Moves: {:?} = {:?}", previous_moves, eval);
+        Node {
+            eval,
+            m: previous_moves[0],
+        }
+    } else {
+        let mut value = Node::default();
+        for m in moves {
+            let mut outcome = board;
+            outcome.apply_move(m.m);
+
+            // Debugging
+            let mut previous_moves = previous_moves.clone();
+            previous_moves.push(m.m);
+
+            value = max(
+                value,
+                -negamax(
+                    genius_color,
+                    outcome,
+                    depth - 1,
+                    -beta,
+                    -alpha,
+                    color.opposite(),
+                    previous_moves,
+                ),
+            );
+
+            alpha = max(alpha, value.eval);
+            if alpha >= beta {
+                break;
+            }
+        }
+        value
+    }
+}
+
+fn evaluate(color: Color, board: &Board) -> Evaluation {
+    let score = board.piecewise_score(color);
+    Evaluation::Score(score as i32)
+}
+
+#[derive(Debug, Copy, Clone, PartialEq, Eq)]
+struct Node {
+    eval: Evaluation,
+    m: Move,
+}
+
+impl Default for Node {
+    fn default() -> Self {
+        Node {
+            eval: Evaluation::Worst,
+            m: Move(Position::default(), Position::default(), Promotion::None),
+        }
+    }
+}
+
+impl PartialOrd for Node {
+    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+        Some(self.eval.cmp(&other.eval))
+    }
+}
+
+impl Ord for Node {
+    fn cmp(&self, other: &Self) -> Ordering {
+        self.eval.cmp(&other.eval)
+    }
+}
+
+impl Neg for Node {
+    type Output = Node;
+
+    fn neg(self) -> Self::Output {
+        Self {
+            eval: -self.eval,
+            m: self.m,
+        }
+    }
+}
+
+/// An assessment of a game state from a particular player's perspective.
+#[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord)]
+pub enum Evaluation {
+    /// An absolutely disastrous outcome, e.g. a loss.
+    Worst,
+    /// An outcome with some score. Higher values mean a more favorable state.
+    Score(i32),
+    /// An absolutely wonderful outcome, e.g. a win.
+    Best,
+}
+
+/// Negating an evaluation results in the corresponding one from the other
+/// player's perspective.
+impl Neg for Evaluation {
+    type Output = Evaluation;
+    #[inline]
+    fn neg(self) -> Evaluation {
+        match self {
+            Evaluation::Worst => Evaluation::Best,
+            Evaluation::Score(s) => Evaluation::Score(-s),
+            Evaluation::Best => Evaluation::Worst,
+        }
+    }
 }
 
 /// Selects the promotion to get based on destination position.

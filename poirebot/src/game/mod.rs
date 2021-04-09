@@ -223,6 +223,16 @@ impl BoardSide {
         self.attacks = BitBoard::default(); // TODO: Calculate attacks
         self
     }
+
+    /// Evaluate the score of this side's pieces, based on the piece types and positions.
+    fn piecewise_score(&self) -> f32 {
+        let pawn_score: f32 = self.pawns.popcnt() as f32 * 1.0;
+        let rook_score: f32 = self.rooks.popcnt() as f32 * 5.0;
+        let knight_score: f32 = self.knights.popcnt() as f32 * 3.0;
+        let bishop_score: f32 = self.bishops.popcnt() as f32 * 3.0;
+        let queen_score: f32 = self.queens.popcnt() as f32 * 8.0;
+        pawn_score + rook_score + knight_score + bishop_score + queen_score
+    }
 }
 
 impl Board {
@@ -479,6 +489,13 @@ impl Board {
     pub fn is_in_check(&self, color: Color) -> bool {
         let side = self.get_side(color);
         (self.get_all_moves(color.opposite()) & side.king).popcnt() != 0
+    }
+
+    /// Evaluate the score of a side's pieces, based on the piece types and positions.
+    pub fn piecewise_score(&self, color: Color) -> f32 {
+        let side = self.get_side(color);
+        let opponent = self.get_side(color.opposite());
+        side.piecewise_score() - opponent.piecewise_score()
     }
 }
 
